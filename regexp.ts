@@ -38,6 +38,7 @@ import {
   ManyNLimitsType,
   or4,
   charSequence,
+  precededBy,
 } from '../reactive-spreadsheet/src/parser_combinators.ts'
 
 type CharacterClassRangeType = { from: SingleChar; to: SingleChar }
@@ -139,10 +140,13 @@ const characterClass: Parser<CharacterClassType> = map(
 const parenthesized: Parser<ParenthesizedType> = input => {
   currentLevel++
 
-  const match = map(delimitedBy(openParens, regExp, closeParens), expr => ({
-    type: 'parenthesized' as const,
-    expr,
-  }))(input)
+  const match = map(
+    delimitedBy(openParens, precededBy(optional(charSequence('?:')), regExp), closeParens),
+    expr => ({
+      type: 'parenthesized' as const,
+      expr,
+    })
+  )(input)
 
   currentLevel--
 
@@ -214,25 +218,25 @@ const mutableLimitsManyN =
       }
 
       case 1: {
-        const maxCounts = limits.maxCounts as (number | undefined)[] | undefined // 1 dimension (standard array)
+        const maxCounts = limits.maxCounts as number[] | undefined // 1 dimension (standard array)
         const [i0] = iterationLevelIndices
         maxCount = maxCounts?.[i0]
         break
       }
 
-      case 2: {
-        const maxCounts = limits.maxCounts as (number | undefined)[][] | undefined // 2 dimensions (2D matrix)
-        const [i0, i1] = iterationLevelIndices
-        maxCount = maxCounts?.[i0]?.[i1]
-        break
-      }
+      // case 2: {
+      //   const maxCounts = limits.maxCounts as number[][] | undefined // 2 dimensions (2D matrix)
+      //   const [i0, i1] = iterationLevelIndices
+      //   maxCount = maxCounts?.[i0]?.[i1]
+      //   break
+      // }
 
-      case 3: {
-        const maxCounts = limits.maxCounts as (number | undefined)[][][] // 3 dimensions
-        const [i0, i1, i2] = iterationLevelIndices
-        maxCount = maxCounts[i0][i1][i2]
-        break
-      }
+      // case 3: {
+      //   const maxCounts = limits.maxCounts as number[][][] // 3 dimensions
+      //   const [i0, i1, i2] = iterationLevelIndices
+      //   maxCount = maxCounts[i0][i1][i2]
+      //   break
+      // }
 
       default:
         throw new Error(`Unsupported level ${level}`)
@@ -323,30 +327,30 @@ export const evaluateRegExpPart =
 
           case 1: {
             part.limits.maxCounts ??= []
-            const maxCounts = part.limits.maxCounts as (number | undefined)[] // 1 dimension (standard array)
+            const maxCounts = part.limits.maxCounts as number[] // 1 dimension (standard array)
             const [i0] = iterationLevelIndices
             maxCounts[i0] = result.length
             break
           }
 
-          case 2: {
-            part.limits.maxCounts ??= []
-            const maxCounts = part.limits.maxCounts as (number | undefined)[][] // 2 dimensions (2D matrix)
-            const [i0, i1] = iterationLevelIndices
-            maxCounts[i0] ??= []
-            maxCounts[i0][i1] = result.length
-            break
-          }
+          // case 2: {
+          //   part.limits.maxCounts ??= []
+          //   const maxCounts = part.limits.maxCounts as number[][] // 2 dimensions (2D matrix)
+          //   const [i0, i1] = iterationLevelIndices
+          //   maxCounts[i0] ??= []
+          //   maxCounts[i0][i1] = result.length
+          //   break
+          // }
 
-          case 3: {
-            part.limits.maxCounts ??= []
-            const maxCounts = part.limits.maxCounts as (number | undefined)[][][] // 3 dimensions
-            const [i0, i1, i2] = iterationLevelIndices
-            maxCounts[i0] ??= []
-            maxCounts[i0][i1] ??= []
-            maxCounts[i0][i1][i2] = result.length
-            break
-          }
+          // case 3: {
+          //   part.limits.maxCounts ??= []
+          //   const maxCounts = part.limits.maxCounts as number[][][] // 3 dimensions
+          //   const [i0, i1, i2] = iterationLevelIndices
+          //   maxCounts[i0] ??= []
+          //   maxCounts[i0][i1] ??= []
+          //   maxCounts[i0][i1][i2] = result.length
+          //   break
+          // }
 
           // case 4: {
           //   part.limits.maxCounts ??= []
@@ -565,7 +569,9 @@ export const addIndicesToRepetitions = (ast: RegExpType, index = 0) => {
 export const buildAndMatch = (
   regExpAsString: string,
   input: string
-): { steps: number; match: ParserResult<string> } => {
+): { match: ParserResult<string> } => {
+  levelWaterMark = Infinity
+
   let stop = false
   let result, rest
   let steps = 0
@@ -577,77 +583,44 @@ export const buildAndMatch = (
     steps++
     ;[result, rest] = parser(input)
 
-    console.log(`[step #${steps}]`)
-
     stop = isError(result) ? !backtrack(ast) : true
   }
 
-  return { steps, match: [result!, rest!] }
+  console.log('steps:', steps)
+
+  return { match: [result!, rest!] }
 }
 
-export const sortedRepetitionNodes = (ast: RegExpType) =>
-  findRepetitions(ast).sort((left, right) => left.level! - right.level!)
-
-// Find reverse in 1 dimension (standard array).
-const findReverse1d = (
-  data: (number | undefined)[],
-  fn: (value: number | undefined) => boolean
-): number | undefined => {
-  let i: number = 0
-
-  for (const num of [...data].reverse()) {
-    if (fn(num)) return data.length - i - 1
-
-    i++
-  }
-}
-
-// Find reverse in 2 dimensions (2D matrix).
-const findReverse2d = (
-  data: (number | undefined)[][],
-  fn: (value: number | undefined) => boolean
-): [number, number] | undefined => {
-  let i = 0
-
-  for (const array1d of [...data].reverse()) {
-    const findResult = findReverse1d(array1d, fn)
-
-    if (findResult !== undefined) return [data.length - i - 1, findResult]
-
-    i++
-  }
-}
-
-// Find reverse in 3 dimensions.
-const findReverse3d = (
-  data: (number | undefined)[][][],
-  fn: (value: number | undefined) => boolean
-): [number, number, number] | undefined => {
-  let i = 0
-
-  for (const array2d of [...data].reverse()) {
-    const findResult = findReverse2d(array2d, fn)
-
-    if (findResult !== undefined) return [data.length - i - 1, ...findResult]
-
-    i++
-  }
-}
-
-const arrayDifference = <T>(left: T[], right: T[]): T[] =>
-  left.filter(item => right.indexOf(item) === -1)
+let levelWaterMark: number
 
 type IterationIndicesType = number | IterationIndicesType[] // Examples: Level 0 -> undefined, Level 1 -> 5, Level 2 -> [3, 4, 6], Level 3 -> [ [2, 4], [1, 3], [2, 5] ] etc.
 
 const pruneFurtherIterationsForRemainingRepetitions = (
+  currentRepetition: RepetitionType,
   allRepetitions: RepetitionType[],
-  processedRepetitions: RepetitionType[],
   iterationIndices?: IterationIndicesType
 ) => {
+  let i: number, j: number
+
+  levelWaterMark = Math.min(levelWaterMark, currentRepetition.level!)
+
+  switch (currentRepetition.level) {
+    case 0: // 0 dimensions (single number)
+      i = iterationIndices as number
+      break
+
+    case 1: {
+      // 1 dimension (standard array)
+      ;[i, j] = iterationIndices as [number, number]
+      break
+    }
+
+    default:
+      throw new Error(`Unsupported level ${currentRepetition.level}`)
+  }
+
   allRepetitions.forEach(repetition => {
     if (repetition.limits.maxCounts === undefined) return
-
-    const wasProcessed = processedRepetitions.indexOf(repetition) >= 0
 
     console.log(
       `%cPruning iterations for repetition with level ${repetition.level} and index ${repetition.index}: maxCounts ${repetition.limits.maxCounts}, iteration indices: ${iterationIndices}`,
@@ -656,160 +629,18 @@ const pruneFurtherIterationsForRemainingRepetitions = (
 
     switch (repetition.level) {
       case 0: // 0 dimensions (single number)
-        repetition.limits.maxCounts = undefined
+        if (repetition.level! < levelWaterMark || repetition.index! > i)
+          repetition.limits.maxCounts = undefined
+
         break
 
       // 1 dimension (standard array)
       case 1: {
-        const i = iterationIndices as number
-        const maxCounts = repetition.limits.maxCounts as (number | undefined)[]
+        const maxCounts = repetition.limits.maxCounts as number[]
 
-        maxCounts.splice(i + (wasProcessed ? 0 : 1))
-        break
-      }
-
-      // 2 dimensions (2D matrix)
-      case 2: {
-        const [i, j] = iterationIndices as [number, number]
-        const maxCounts = repetition.limits.maxCounts as (number | undefined)[][]
-
-        maxCounts.splice(i + (wasProcessed ? 0 : 1))
-        maxCounts[i].splice(j + (wasProcessed ? 0 : 1))
-        break
-      }
-
-      // 3 dimensions
-      case 3: {
-        const [i, j, k] = iterationIndices as [number, number, number]
-        const maxCounts = repetition.limits.maxCounts as (number | undefined)[][][]
-
-        maxCounts.splice(i + (wasProcessed ? 0 : 1))
-        maxCounts[i].splice(j + (wasProcessed ? 0 : 1))
-        maxCounts[i][j].splice(k + (wasProcessed ? 0 : 1))
-        break
-      }
-
-      default:
-        throw new Error(`Unsupported level ${currentLevel}`)
-    }
-  })
-}
-
-export const backtrack = (ast: RegExpType) => {
-  const processed: RepetitionType[] = []
-  const reversedRepetitions: RepetitionType[] = sortedRepetitionNodes(ast).reverse()
-
-  for (const repetition of reversedRepetitions) {
-    if (
-      repetition.limits.maxCounts === undefined ||
-      (Array.isArray(repetition.limits.maxCounts) && repetition.limits.maxCounts.length === 0)
-    )
-      continue
-
-    switch (repetition.level) {
-      // 0 dimensions (single number)
-      case 0: {
-        const maxCounts = repetition.limits.maxCounts as number | undefined
-
-        if (maxCounts !== undefined && maxCounts > repetition.limits.min) {
-          console.log(
-            `%c [level: ${repetition.level}] Reducing max from ${maxCounts} to ${maxCounts - 1}`,
-            'color: cyan'
-          )
-
-          repetition.limits.maxCounts = maxCounts - 1
-
-          pruneFurtherIterationsForRemainingRepetitions(reversedRepetitions, processed)
-
-          return true
-        }
-
-        break
-      }
-
-      // 1 dimension (standard array)
-      case 1: {
-        const maxCounts = repetition.limits.maxCounts as (number | undefined)[]
-
-        const findResult = findReverse1d(
-          maxCounts,
-          count => count !== undefined && count > repetition.limits.min
+        maxCounts.splice(
+          repetition.level! < levelWaterMark ? 0 : j + (repetition.index! > i ? 0 : 1)
         )
-
-        if (findResult !== undefined) {
-          const i = findResult
-
-          console.log(
-            `%c[level: ${repetition.level}, i: ${i}] Reducing max from ${maxCounts[i]} to ${
-              maxCounts[i]! - 1
-            }, maxCounts: ${maxCounts}`,
-            'color: cyan'
-          )
-
-          maxCounts[i]!--
-
-          pruneFurtherIterationsForRemainingRepetitions(reversedRepetitions, processed, i)
-
-          return true
-        }
-
-        break
-      }
-
-      // 2 dimensions (2D matrix)
-      case 2: {
-        const maxCounts = repetition.limits.maxCounts as (number | undefined)[][]
-
-        const findResult = findReverse2d(
-          maxCounts,
-          count => count !== undefined && count > repetition.limits.min
-        )
-
-        if (findResult !== undefined) {
-          const [i, j] = findResult
-
-          console.log(
-            `%c [level: ${repetition.level}, i: ${i}, j: ${j}] Reducing max from ${
-              maxCounts[i][j]
-            } to ${maxCounts[i][j]! - 1}, maxCounts: ${maxCounts}`,
-            'color: cyan'
-          )
-
-          maxCounts[i][j]!--
-
-          pruneFurtherIterationsForRemainingRepetitions(reversedRepetitions, processed, [i, j])
-
-          return true
-        }
-
-        break
-      }
-
-      // 3 dimensions
-      case 3: {
-        const maxCounts = repetition.limits.maxCounts as (number | undefined)[][][]
-
-        const findResult = findReverse3d(
-          maxCounts,
-          count => count !== undefined && count > repetition.limits.min
-        )
-
-        if (findResult !== undefined) {
-          const [i, j, k] = findResult
-
-          console.log(
-            `%c [level: ${repetition.level}, i: ${i}, j: ${j}, k: ${k}] Reducing max from ${
-              maxCounts[i][j][k]
-            } to ${maxCounts[i][j][k]! - 1}, maxCounts: ${maxCounts}`,
-            'color: cyan'
-          )
-
-          maxCounts[i][j][k]!--
-
-          pruneFurtherIterationsForRemainingRepetitions(reversedRepetitions, processed, [i, j, k])
-
-          return true
-        }
 
         break
       }
@@ -817,8 +648,94 @@ export const backtrack = (ast: RegExpType) => {
       default:
         throw new Error(`Unsupported level ${repetition.level}`)
     }
+  })
+}
 
-    processed.push(repetition)
+export const backtrack = (ast: RegExpType) => {
+  const repetitions: RepetitionType[] = findRepetitions(ast)
+
+  const repetitionsByLevel = groupBy(repetitions, repetition => repetition.level!)
+
+  const sortedRepetitionsByLevel = Object.keys(repetitionsByLevel)
+    .map(levelAsString => Number(levelAsString))
+    .sort()
+    .reverse()
+
+  for (const level of sortedRepetitionsByLevel) {
+    const sortedLevelRepetitions = repetitionsByLevel[level].sort(
+      (left, right) => left.index! - right.index!
+    )
+
+    switch (level) {
+      case 0: {
+        const maxCounts = sortedLevelRepetitions.map(
+          // 0 dimensions (single number)
+          repetition => repetition.limits.maxCounts as number | undefined
+        )
+
+        for (let col = maxCounts.length - 1; col >= 0; col--) {
+          const max = maxCounts[col]
+
+          if (max !== undefined && max > sortedLevelRepetitions[col].limits.min) {
+            const i = col
+
+            console.log(
+              `%c [level: ${level}, i: ${i}] Reducing max from ${maxCounts[i]} to ${
+                maxCounts[i]! - 1
+              }, maxCounts: ${maxCounts}`,
+              'color: cyan'
+            )
+
+            sortedLevelRepetitions[i].limits.maxCounts = max - 1
+
+            pruneFurtherIterationsForRemainingRepetitions(sortedLevelRepetitions[i], repetitions, i)
+
+            return true
+          }
+        }
+
+        break
+      }
+
+      case 1: {
+        const maxCounts = sortedLevelRepetitions.map(
+          // 1 dimension (standard array)
+          repetition => (repetition.limits.maxCounts ?? []) as (number | undefined)[]
+        )
+
+        for (let col = maxCounts[0].length - 1; col >= 0; col--) {
+          for (let row = maxCounts.length - 1; row >= 0; row--) {
+            const max = maxCounts[row][col]
+
+            if (max !== undefined && max > sortedLevelRepetitions[row].limits.min) {
+              const [i, j] = [row, col]
+
+              console.log(
+                `%c [level: ${level}, i: ${i}, j: ${j}] Reducing max from ${maxCounts[i][j]} to ${
+                  maxCounts[i][j]! - 1
+                }, maxCounts: ${maxCounts[row]}`,
+                'color: cyan'
+              )
+
+              maxCounts[i][j]!--
+
+              pruneFurtherIterationsForRemainingRepetitions(
+                sortedLevelRepetitions[i],
+                repetitions,
+                [i, j]
+              )
+
+              return true
+            }
+          }
+        }
+
+        break
+      }
+
+      default:
+        throw new Error(`Unsupported level ${level}`)
+    }
   }
 
   return false
@@ -828,6 +745,9 @@ export const debugRegExp = async (
   regExpAsString: string,
   input: string
 ): Promise<ParserResult<string>> => {
+  levelWaterMark = Infinity
+
+  let steps = 0
   const bufferSize = 1
   const buf = new Uint8Array(bufferSize)
 
@@ -838,12 +758,16 @@ export const debugRegExp = async (
   let match: ParserResult<string> | undefined
 
   while (!stop) {
+    steps++
+
     match = parser(input)
 
     if (isError(match[0])) {
       print(ast)
 
-      console.log('Press ENTER to continue')
+      console.log('\nlevelWaterMark:', levelWaterMark)
+
+      console.log('\nPress ENTER to continue')
       await Deno.stdin.read(buf)
       console.log('----------------------------\n')
 
@@ -852,6 +776,10 @@ export const debugRegExp = async (
       stop = true
     }
   }
+
+  print(ast)
+
+  console.log('steps:', steps)
 
   return match!
 }
@@ -866,12 +794,23 @@ export const print = (value: object) =>
 
 export const showRegExp = (regExpAsString: string) => print(buildRegExpAST(regExpAsString))
 
+export const groupBy = <T>(collection: T[], fn: (prop: T) => string | number) =>
+  collection.reduce((acc: { [key: string | number]: T[] }, obj: T) => {
+    acc[fn(obj)] ??= []
+    acc[fn(obj)].push(obj)
+    return acc
+  }, {})
+
+export const times = <T>(n: number, fn: (index: number) => T): T[] => [...Array(n).keys()].map(fn)
+
 // import * as re from './regexp.ts'; import * as pc from '../reactive-spreadsheet/src/parser_combinators.ts'
 //
 // re.regExpMatcher('a*')('...aa')
 // re.regExpMatcher('a+')('...aa')
 //
-// re.buildAndMatch('(x+x+)+y', 'xxxxxxxxxx')
+// re.buildAndMatch('(x+x+)+y', 'xxxxxxxxxx') // 558 steps
+// re.buildAndMatch('(a+)*ab', 'aaaaaaaaaaaab') // 2050 steps
+// re.buildAndMatch('.*.*=.*', 'x=x') // 6 steps
 //
 // await re.debugRegExp('(x+x+)+y', 'xxxxxxxxxx')
 //
