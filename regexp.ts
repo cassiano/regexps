@@ -244,15 +244,9 @@ const mutableLimitsManyN =
 
     const maxLimit = maxCount ?? limits.max ?? defaultLimits.max
 
-    console.log(
-      'maxCount:',
-      maxCount,
-      'limits.max:',
-      limits.max,
-      'defaultLimits.max',
-      defaultLimits.max,
-      'maxLimit',
-      maxLimit
+    debug(
+      () =>
+        `maxCount: ${maxCount}, limits.max: ${limits.max}, defaultLimits.max: ${defaultLimits.max}, maxLimit: ${maxLimit}`
     )
 
     if (maxLimit === 0) return [[], input]
@@ -288,8 +282,9 @@ export const evaluateRegExpPart =
       case 'singleChar': {
         const [result, rest] = (part.character === PERIOD ? anyChar() : char(part.character))(input)
 
-        console.log(`Trying to match '${part.character}' against '${input}'`)
-        if (!isError(result)) console.log(`%cMatched singleChar: '${result}'`, 'color: green')
+        debug(() => `Trying to match '${part.character}' against '${input}'`)
+
+        if (!isError(result)) debug(() => `Matched singleChar: '${result}'`)
 
         return [result, rest]
       }
@@ -306,7 +301,7 @@ export const evaluateRegExpPart =
       }
 
       case 'repetition': {
-        console.log('[repetition] level:', part.level, 'part.limits:', part.limits)
+        debug(() => `[repetition] level: ${part.level}, part.limits: ${part.limits}`)
 
         const [result, rest] = mutableLimitsManyN(
           evaluateRegExpPart(part.expr),
@@ -392,11 +387,11 @@ export const evaluateRegExpPart =
             throw new Error(`Unsupported level ${part.level}`)
         }
 
-        console.log(
-          `%cMatched repetition (level: ${part.level}, min: ${part.limits.min}, max ${
-            part.limits.max
-          }): '${result.join(EMPTY_STRING)}', count: ${result.length}`,
-          'color: magenta'
+        debug(
+          () =>
+            `Matched repetition (level: ${part.level}, min: ${part.limits.min}, max ${
+              part.limits.max
+            }): '${result.join(EMPTY_STRING)}', count: ${result.length}`
         )
 
         return [result.join(EMPTY_STRING), rest]
@@ -450,7 +445,7 @@ export const buildRegExpAST = (regExpAsString: string): RegExpType => {
     replaceEscapedChars(replaceCharacterClassAbbreviations(regExpAsString))
   )
 
-  console.log('RegExp:', replaceEscapedChars(replaceCharacterClassAbbreviations(regExpAsString)))
+  debug(() => `RegExp: ${replaceEscapedChars(replaceCharacterClassAbbreviations(regExpAsString))}`)
 
   if (isError(result) || rest !== EMPTY_STRING) throw new Error('Invalid regular expression')
 
@@ -569,7 +564,7 @@ export const addIndicesToRepetitions = (ast: RegExpType, index = 0) => {
 export const buildAndMatch = (
   regExpAsString: string,
   input: string
-): { match: ParserResult<string> } => {
+): { match: ParserResult<string>; steps: number } => {
   levelWaterMark = Infinity
 
   let stop = false
@@ -586,9 +581,9 @@ export const buildAndMatch = (
     stop = isError(result) ? !backtrack(ast) : true
   }
 
-  console.log('steps:', steps)
+  debug(() => `Steps: ${steps}`)
 
-  return { match: [result!, rest!] }
+  return { match: [result!, rest!], steps }
 }
 
 let levelWaterMark: number
@@ -622,9 +617,9 @@ const pruneFurtherIterationsForRemainingRepetitions = (
   allRepetitions.forEach(repetition => {
     if (repetition.limits.maxCounts === undefined) return
 
-    console.log(
-      `%cPruning iterations for repetition with level ${repetition.level} and index ${repetition.index}: maxCounts ${repetition.limits.maxCounts}, iteration indices: ${iterationIndices}`,
-      'color: red'
+    debug(
+      () =>
+        `Pruning iterations for repetition with level ${repetition.level} and index ${repetition.index}: maxCounts ${repetition.limits.maxCounts}, iteration indices: ${iterationIndices}`
     )
 
     switch (repetition.level) {
@@ -679,11 +674,11 @@ export const backtrack = (ast: RegExpType) => {
           if (max !== undefined && max > sortedLevelRepetitions[col].limits.min) {
             const i = col
 
-            console.log(
-              `%c [level: ${level}, i: ${i}] Reducing max from ${maxCounts[i]} to ${
-                maxCounts[i]! - 1
-              }, maxCounts: ${maxCounts}`,
-              'color: cyan'
+            debug(
+              () =>
+                `[level: ${level}, i: ${i}] Reducing max from ${maxCounts[i]} to ${
+                  maxCounts[i]! - 1
+                }, maxCounts: ${maxCounts}`
             )
 
             sortedLevelRepetitions[i].limits.maxCounts = max - 1
@@ -710,11 +705,11 @@ export const backtrack = (ast: RegExpType) => {
             if (max !== undefined && max > sortedLevelRepetitions[row].limits.min) {
               const [i, j] = [row, col]
 
-              console.log(
-                `%c [level: ${level}, i: ${i}, j: ${j}] Reducing max from ${maxCounts[i][j]} to ${
-                  maxCounts[i][j]! - 1
-                }, maxCounts: ${maxCounts[row]}`,
-                'color: cyan'
+              debug(
+                () =>
+                  `[level: ${level}, i: ${i}, j: ${j}] Reducing max from ${maxCounts[i][j]} to ${
+                    maxCounts[i][j]! - 1
+                  }, maxCounts: ${maxCounts[row]}`
               )
 
               maxCounts[i][j]!--
@@ -765,11 +760,11 @@ export const debugRegExp = async (
     if (isError(match[0])) {
       print(ast)
 
-      console.log('\nlevelWaterMark:', levelWaterMark)
+      log(() => `\nlevelWaterMark: ${levelWaterMark}`)
 
-      console.log('\nPress ENTER to continue')
+      log('\nPress ENTER to continue')
       await Deno.stdin.read(buf)
-      console.log('----------------------------\n')
+      log('----------------------------\n')
 
       stop = !backtrack(ast)
     } else {
@@ -779,7 +774,7 @@ export const debugRegExp = async (
 
   print(ast)
 
-  console.log('steps:', steps)
+  debug(() => `Steps: ${steps}`)
 
   return match!
 }
@@ -789,8 +784,10 @@ declare const Deno: {
   stdin: { read: (...args: unknown[]) => void }
 }
 
-export const print = (value: object) =>
-  console.log(Deno.inspect(value, { depth: 999, colors: true }))
+export const log = console.log
+
+export const inspect = (value: object) => Deno.inspect(value, { depth: 999, colors: true })
+export const print = (value: object) => log(inspect(value))
 
 export const showRegExp = (regExpAsString: string) => print(buildRegExpAST(regExpAsString))
 
@@ -802,6 +799,18 @@ export const groupBy = <T>(collection: T[], fn: (prop: T) => string | number) =>
   }, {})
 
 export const times = <T>(n: number, fn: (index: number) => T): T[] => [...Array(n).keys()].map(fn)
+
+let DEBUG = true
+
+export const debug = (messageOrFalse: () => string | false): void => {
+  if (DEBUG) {
+    const message = messageOrFalse()
+
+    if (message === false) return
+
+    log(message)
+  }
+}
 
 // import * as re from './regexp.ts'; import * as pc from '../reactive-spreadsheet/src/parser_combinators.ts'
 //
