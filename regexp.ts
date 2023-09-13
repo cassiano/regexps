@@ -739,10 +739,7 @@ export const scan = (regExpAsString: string, input: string): string[] => {
   return matches.flat()
 }
 
-export const debugRegExp = async (
-  regExpAsString: string,
-  input: string
-): Promise<ParserResult<string>> => {
+export const debugRegExp = (regExpAsString: string, input: string): ParserResult<string> => {
   levelWaterMark = Infinity
 
   let steps = 0
@@ -821,7 +818,7 @@ export const debug = (messageOrFalse: () => string | false): void => {
 // re.buildAndMatch('(a+)*ab', 'aaaaaaaaaaaab', true) // 2050 steps
 // re.buildAndMatch('.*.*=.*', 'x=x', true) // 6 steps
 //
-// await re.debugRegExp('(x+x+)+y', 'xxxxxxxxxx')
+// re.debugRegExp('(x+x+)+y', 'xxxxxxxxxx')
 //
 // const ast = re.buildRegExpAST('(x+x+)+y')
 // const parser = re.regExpParserFromAST(ast)
