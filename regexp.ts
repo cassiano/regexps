@@ -170,19 +170,6 @@ const quantifier: Parser<RepetitionLimitsType> = map(
         }
 )
 
-// const regExpfactor: Parser<RegExpTypePart> = map(
-//   and(or3(regExpSingleChar, characterClass, parenthesizedRegExp), optional(quantifier)),
-//   ([expr, limits]) =>
-//     limits === EMPTY_STRING
-//       ? expr
-//       : {
-//           type: 'repetition',
-//           expr,
-//           level,
-//           limits
-//         }
-// )
-
 const repetition: Parser<RepetitionType> = map(
   and(or3(singleChar, characterClass, parenthesized), quantifier),
   ([expr, limits]) => ({
@@ -224,20 +211,6 @@ const mutableLimitsManyN =
         maxCount = maxCounts?.[i0]
         break
       }
-
-      // case 2: {
-      //   const maxCounts = limits.maxCounts as number[][] | undefined // 2 dimensions (2D matrix)
-      //   const [i0, i1] = iterationLevelIndices
-      //   maxCount = maxCounts?.[i0]?.[i1]
-      //   break
-      // }
-
-      // case 3: {
-      //   const maxCounts = limits.maxCounts as number[][][] // 3 dimensions
-      //   const [i0, i1, i2] = iterationLevelIndices
-      //   maxCount = maxCounts[i0][i1][i2]
-      //   break
-      // }
 
       default:
         throw new Error(`Unsupported level ${level}`)
@@ -346,61 +319,6 @@ export const evaluateRegExpPart =
             maxCounts[i0] = result.length
             break
           }
-
-          // case 2: {
-          //   part.limits.maxCounts ??= []
-          //   const maxCounts = part.limits.maxCounts as number[][] // 2 dimensions (2D matrix)
-          //   const [i0, i1] = iterationLevelIndices
-          //   maxCounts[i0] ??= []
-          //   maxCounts[i0][i1] = result.length
-          //   break
-          // }
-
-          // case 3: {
-          //   part.limits.maxCounts ??= []
-          //   const maxCounts = part.limits.maxCounts as number[][][] // 3 dimensions
-          //   const [i0, i1, i2] = iterationLevelIndices
-          //   maxCounts[i0] ??= []
-          //   maxCounts[i0][i1] ??= []
-          //   maxCounts[i0][i1][i2] = result.length
-          //   break
-          // }
-
-          // case 4: {
-          //   part.limits.maxCounts ??= []
-          //   const maxCounts = part.limits.maxCounts as (number|undefined)[][][][] // 4 dimensions
-          //   const [i0, i1, i2, i3] = iterationLevelIndices
-          //   maxCounts[i0] ??= []
-          //   maxCounts[i0][i1] ??= []
-          //   maxCounts[i0][i1][i2] ??= []
-          //   maxCounts[i0][i1][i2][i3] = result.length
-          //   break
-          // }
-
-          // case 5: {
-          //   part.limits.maxCounts ??= []
-          //   const maxCounts = part.limits.maxCounts as (number|undefined)[][][][][] // 5 dimensions
-          //   const [i0, i1, i2, i3, i4] = iterationLevelIndices
-          //   maxCounts[i0] ??= []
-          //   maxCounts[i0][i1] ??= []
-          //   maxCounts[i0][i1][i2] ??= []
-          //   maxCounts[i0][i1][i2][i3] ??= []
-          //   maxCounts[i0][i1][i2][i3][i4] = result.length
-          //   break
-          // }
-
-          // case 6: {
-          //   part.limits.maxCounts ??= []
-          //   const maxCounts = part.limits.maxCounts as (number|undefined)[][][][][][] // 6 dimensions
-          //   const [i0, i1, i2, i3, i4, i5] = iterationLevelIndices
-          //   maxCounts[i0] ??= []
-          //   maxCounts[i0][i1] ??= []
-          //   maxCounts[i0][i1][i2] ??= []
-          //   maxCounts[i0][i1][i2][i3] ??= []
-          //   maxCounts[i0][i1][i2][i3][i4] = []
-          //   maxCounts[i0][i1][i2][i3][i4][i5] = result.length
-          //   break
-          // }
 
           default:
             throw new Error(`Unsupported level ${part.level}`)
