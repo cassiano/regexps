@@ -638,20 +638,19 @@ export const buildAndMatch = (
 }
 
 export const scan = (regExpAsString: string, input: string): string[] => {
-  let stop = false
   let rest = input
   const matches = []
 
-  while (!stop) {
+  while (true) {
     const [result, remaining] = buildAndMatch(regExpAsString, rest).match
 
     if (!isError(result)) {
       matches.push(result)
 
-      rest = remaining
+      rest = remaining.length < rest.length ? remaining : remaining.slice(1)
     }
 
-    if (isError(result) || remaining === EMPTY_STRING) stop = true
+    if (isError(result) || remaining === EMPTY_STRING) break
   }
 
   return matches.flat()
@@ -664,10 +663,9 @@ export const debugRegExp = (regExpAsString: string, input: string): ParserResult
   const ast = buildRegExpAST(regExpAsString)
   const parser = regExpParserFromAST(ast)
 
-  let stop = false
   let match: ParserResult<string> | undefined
 
-  while (!stop) {
+  while (true) {
     steps++
 
     match = parser(input)
@@ -681,9 +679,9 @@ export const debugRegExp = (regExpAsString: string, input: string): ParserResult
 
       log('\n-------------------------------------------------------------------\n')
 
-      stop = !backtrack(ast)
+      if (!backtrack(ast)) break
     } else {
-      stop = true
+      break
     }
   }
 
