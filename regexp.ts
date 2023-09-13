@@ -454,55 +454,10 @@ export const buildRegExpAST = (regExpAsString: string): RegExpType => {
   return result
 }
 
-// export const regExpParser = (regExpAsString: string): Parser<string> =>
-//   regExpParserFromAST(buildRegExpAST(regExpAsString))
-
 export const regExpParserFromAST = (ast: RegExpType): Parser<string> =>
   concat(andN(ast.map(evaluateRegExpPart)))
 
-// export const matchRegExp = (parser: Parser<string>, input: string): ParserResult<string> => {
-//   let result!: string | Error
-//   let rest!: string
-
-//   // Try to match the regular expression from left to right.
-//   for (let i = 0; i < input.length; i++) {
-//     ;[result, rest] = parser(input.slice(i))
-
-//     if (!isError(result)) return [result, rest]
-//   }
-
-//   return [result, rest]
-// }
-
-// export const regExpMatcher =
-//   (regExpAsString: string): Parser<string> =>
-//   input => {
-//     const parser = regExpParser(regExpAsString)
-
-//     return matchRegExp(parser, input)
-//   }
-
-export const scan = (regExpAsString: string, input: string): string[] => {
-  let stop = false
-  let rest = input
-  const matches = []
-
-  while (!stop) {
-    const [result, remaining] = buildAndMatch(regExpAsString, rest).match
-
-    if (!isError(result)) {
-      matches.push(result)
-
-      rest = remaining
-    }
-
-    if (isError(result) || remaining === EMPTY_STRING) stop = true
-  }
-
-  return matches.flat()
-}
-
-export const findRepetitions = (ast: RegExpType): RepetitionType[] => {
+const findRepetitions = (ast: RegExpType): RepetitionType[] => {
   return ast
     .map(part => {
       switch (part.type) {
@@ -528,7 +483,7 @@ export const findRepetitions = (ast: RegExpType): RepetitionType[] => {
     .flat()
 }
 
-export const addIndicesToRepetitions = (ast: RegExpType, index = 0) => {
+const addIndicesToRepetitions = (ast: RegExpType, index = 0) => {
   ast.forEach(part => {
     switch (part.type) {
       case 'singleChar':
@@ -555,39 +510,6 @@ export const addIndicesToRepetitions = (ast: RegExpType, index = 0) => {
       }
     }
   })
-}
-
-export const buildAndMatch = (
-  regExpAsString: string,
-  input: string,
-  exactMatch = false
-): { match: ParserResult<string>; steps: number } => {
-  let result, rest
-  let steps: number = 0
-
-  // Try to match the regular expression from left to right.
-  for (let i = 0; i < (exactMatch ? 1 : input.length); i++) {
-    let stop: boolean = false
-
-    const ast = buildRegExpAST(regExpAsString)
-    const parser = regExpParserFromAST(ast)
-
-    const slicedInput = input.slice(i)
-
-    levelWaterMark = Infinity
-    steps = 0
-    stop = false
-
-    while (!stop) {
-      steps++
-      ;[result, rest] = parser(slicedInput)
-
-      if (isError(result)) stop = !backtrack(ast)
-      else return { match: [result, rest], steps }
-    }
-  }
-
-  return { match: [result!, rest!], steps }
 }
 
 let levelWaterMark: number
@@ -740,6 +662,59 @@ export const backtrack = (ast: RegExpType) => {
   return false
 }
 
+export const buildAndMatch = (
+  regExpAsString: string,
+  input: string,
+  exactMatch = false
+): { match: ParserResult<string>; steps: number } => {
+  let result, rest
+  let steps: number = 0
+
+  // Try to match the regular expression from left to right.
+  for (let i = 0; i < (exactMatch ? 1 : input.length); i++) {
+    let stop: boolean = false
+
+    const ast = buildRegExpAST(regExpAsString)
+    const parser = regExpParserFromAST(ast)
+
+    const slicedInput = input.slice(i)
+
+    levelWaterMark = Infinity
+    steps = 0
+    stop = false
+
+    while (!stop) {
+      steps++
+      ;[result, rest] = parser(slicedInput)
+
+      if (isError(result)) stop = !backtrack(ast)
+      else return { match: [result, rest], steps }
+    }
+  }
+
+  return { match: [result!, rest!], steps }
+}
+
+export const scan = (regExpAsString: string, input: string): string[] => {
+  let stop = false
+  let rest = input
+  const matches = []
+
+  while (!stop) {
+    const [result, remaining] = buildAndMatch(regExpAsString, rest).match
+
+    if (!isError(result)) {
+      matches.push(result)
+
+      rest = remaining
+    }
+
+    if (isError(result) || remaining === EMPTY_STRING) stop = true
+  }
+
+  return matches.flat()
+}
+
 export const debugRegExp = async (
   regExpAsString: string,
   input: string
@@ -747,9 +722,6 @@ export const debugRegExp = async (
   levelWaterMark = Infinity
 
   let steps = 0
-  const bufferSize = 1
-  const buf = new Uint8Array(bufferSize)
-
   const ast = buildRegExpAST(regExpAsString)
   const parser = regExpParserFromAST(ast)
 
@@ -766,9 +738,9 @@ export const debugRegExp = async (
 
       log(() => `\nlevelWaterMark: ${levelWaterMark}`)
 
-      log('\nPress ENTER to continue')
-      await Deno.stdin.read(buf)
-      log('----------------------------\n')
+      prompt('\nPress ENTER to continue')
+
+      log('\n-------------------------------------------------------------------\n')
 
       stop = !backtrack(ast)
     } else {
