@@ -687,9 +687,12 @@ export const debugRegExp = (regExpAsString: string, input: string): ParserResult
     if (isError(match[0])) {
       print(ast)
 
-      log(() => `\nlevelWaterMark: ${levelWaterMark}`)
+      log(`\nSteps: ${steps}`)
+      log(`levelWaterMark: ${levelWaterMark}`)
 
-      prompt('\nPress ENTER to continue')
+      const key = prompt('\nPress ENTER to continue (or `q` to quit)')
+
+      if (key === 'q') break
 
       log('\n-------------------------------------------------------------------\n')
 
@@ -700,8 +703,6 @@ export const debugRegExp = (regExpAsString: string, input: string): ParserResult
   }
 
   print(ast)
-
-  debug(() => `Steps: ${steps}`)
 
   return match!
 }
