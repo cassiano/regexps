@@ -39,6 +39,7 @@ import {
   or4,
   charSequence,
   precededBy,
+  error,
 } from '../reactive-spreadsheet/src/parser_combinators.ts'
 
 type CharacterClassRangeType = { from: SingleChar; to: SingleChar }
@@ -275,12 +276,30 @@ const mutableLimitsManyN =
     )(rest)
   }
 
+const DOLLAR_SIGN = '$'
+
+const endOfString: Parser<string> = input =>
+  input.length === 0 ? ['', ''] : [error('Input not empty'), input]
+
 export const evaluateRegExpPart =
   (part: RegExpTypePart): Parser<string> =>
   input => {
     switch (part.type) {
       case 'singleChar': {
-        const [result, rest] = (part.character === PERIOD ? anyChar() : char(part.character))(input)
+        let parser: Parser<string>
+
+        switch (part.character) {
+          case PERIOD:
+            parser = anyChar()
+            break
+          case DOLLAR_SIGN:
+            parser = endOfString
+            break
+          default:
+            parser = char(part.character)
+        }
+
+        const [result, rest] = parser(input)
 
         debug(() => `Trying to match '${part.character}' against '${input}'`)
 
@@ -669,6 +688,11 @@ export const buildAndMatch = (
 ): { match: ParserResult<string>; steps: number } => {
   let result, rest
   let steps: number = 0
+
+  if (regExpAsString.startsWith('^')) {
+    regExpAsString = regExpAsString.slice(1)
+    exactMatch = true
+  }
 
   // Try to match the regular expression from left to right.
   for (let i = 0; i < (exactMatch ? 1 : input.length); i++) {
