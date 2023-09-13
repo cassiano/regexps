@@ -694,7 +694,10 @@ export const debugRegExp = (regExpAsString: string, input: string): ParserResult
 
       if (key === 'q') break
 
-      log('\n-------------------------------------------------------------------\n')
+      log('\n-------------------------------------------------------------------')
+      log('regExpAsString:', regExpAsString)
+      log('input:', input)
+      log('-------------------------------------------------------------------\n')
 
       if (!backtrack(ast)) break
     } else {
@@ -744,6 +747,7 @@ export const debug = (messageOrFalse: () => string | false): void => {
 // re.buildAndMatch('(an)+', 'banana')
 // re.buildAndMatch('is+', 'mississipi')
 // re.buildAndMatch('(is+)+', 'mississipi')
+// re.buildAndMatch('m(is+)+is', 'mississipi')   // DOES NOT WORK!
 // re.buildAndMatch('/d{2}/D/d{2}/s*([ap]m)', '"12:50 am')
 //
 // re.buildAndMatch('a*', '...aa')
