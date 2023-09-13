@@ -91,14 +91,14 @@ type RepetitionType = {
   maxLimitUpdated?: boolean
 }
 
-type RegExpTypePart =
+type RegExpTokenType =
   | SingleCharType
   | CharacterClassType
   | ParenthesizedType
   | RepetitionType
   | AlternationType
 
-type RegExpType = RegExpTypePart[]
+type RegExpType = RegExpTokenType[]
 
 const QUANTIFIERS: { [quantifier: SingleChar]: RepetitionLimitsType } = {
   '*': { min: 0, max: Infinity },
@@ -110,7 +110,7 @@ const alternation = char('|')
 
 let currentLevel = 0
 
-const alternativeTerm: Parser<RegExpTypePart> = input =>
+const alternativeTerm: Parser<RegExpTokenType> = input =>
   or(
     map(and(succeededBy(many(factor), alternation), many(alternativeTerm)), ([left, right]) => ({
       type: 'alternation' as const,
@@ -191,7 +191,7 @@ const repetition: Parser<RepetitionType> = map(
   })
 )
 
-const factor: Parser<RegExpTypePart> = or4(repetition, singleChar, characterClass, parenthesized)
+const factor: Parser<RegExpTokenType> = or4(repetition, singleChar, characterClass, parenthesized)
 
 type IterationIndicesType = number | IterationIndicesType[] // Examples: Level 0 -> undefined, Level 1 -> 5, Level 2 -> [3, 4, 6], Level 3 -> [ [2, 4], [1, 3], [2, 5] ] etc.
 
@@ -266,14 +266,14 @@ const NEW_LINE = '\n'
 const endOfString: Parser<string> = input =>
   input.length === 0 ? ['', ''] : [error('Input not empty'), input]
 
-export const evaluateRegExpPart =
-  (part: RegExpTypePart): Parser<string> =>
+export const evaluateRegExpToken =
+  (token: RegExpTokenType): Parser<string> =>
   input => {
-    switch (part.type) {
+    switch (token.type) {
       case 'singleChar': {
         let parser: Parser<string>
 
-        switch (part.character) {
+        switch (token.character) {
           case PERIOD:
             parser = anyCharExcept(NEW_LINE)
             break
@@ -281,12 +281,12 @@ export const evaluateRegExpPart =
             parser = endOfString
             break
           default:
-            parser = char(part.character)
+            parser = char(token.character)
         }
 
         const [result, rest] = parser(input)
 
-        debug(() => `Trying to match '${part.character}' against '${input}'`)
+        debug(() => `Trying to match '${token.character}' against '${input}'`)
 
         if (!isError(result)) debug(() => `Matched singleChar: '${result}'`)
 
@@ -294,52 +294,52 @@ export const evaluateRegExpPart =
       }
 
       case 'parenthesized':
-        return concat(andN(part.expr.map(evaluateRegExpPart)))(input)
+        return concat(andN(token.expr.map(evaluateRegExpToken)))(input)
 
       case 'characterClass': {
-        const optionsParser = part.options.map(option =>
+        const optionsParser = token.options.map(option =>
           typeof option === 'string' ? char(option) : charRange(option.from, option.to)
         )
 
-        return (!part.negated ? orN(optionsParser) : none1(optionsParser))(input)
+        return (!token.negated ? orN(optionsParser) : none1(optionsParser))(input)
       }
 
       case 'repetition': {
-        debug(() => `[repetition] level: ${part.level}, part.limits: ${inspect(part.limits)}`)
+        debug(() => `[repetition] level: ${token.level}, token.limits: ${inspect(token.limits)}`)
 
         const [result, rest] = mutableLimitsManyN(
-          evaluateRegExpPart(part.expr),
-          part.limits,
-          part.level!
+          evaluateRegExpToken(token.expr),
+          token.limits,
+          token.level!
         )(input)
 
         if (isError(result)) return [result, input]
 
         // Clone the object before reassigning to its `maxCounts` property, so distinct iterations
         // do not interfere with one another during backtracking.
-        part.limits = { ...part.limits }
+        token.limits = { ...token.limits }
 
-        switch (part.level) {
+        switch (token.level) {
           case 0:
-            part.limits.maxCounts = result.length // 0 dimensions (single number).
+            token.limits.maxCounts = result.length // 0 dimensions (single number).
             break
 
           case 1: {
-            part.limits.maxCounts ??= []
-            const maxCounts = part.limits.maxCounts as number[] // 1 dimension (standard array)
+            token.limits.maxCounts ??= []
+            const maxCounts = token.limits.maxCounts as number[] // 1 dimension (standard array)
             const [i0] = iterationLevelIndices
             maxCounts[i0] = result.length
             break
           }
 
           default:
-            throw new Error(`Unsupported level ${part.level}`)
+            throw new Error(`Unsupported level ${token.level}`)
         }
 
         debug(
           () =>
-            `Matched repetition (level: ${part.level}, min: ${part.limits.min}, max ${
-              part.limits.max
+            `Matched repetition (level: ${token.level}, min: ${token.limits.min}, max ${
+              token.limits.max
             }): '${result.join(EMPTY_STRING)}', count: ${result.length}`
         )
 
@@ -348,11 +348,11 @@ export const evaluateRegExpPart =
 
       case 'alternation':
         return concat(
-          or(andN(part.left.map(evaluateRegExpPart)), andN(part.right.map(evaluateRegExpPart)))
+          or(andN(token.left.map(evaluateRegExpToken)), andN(token.right.map(evaluateRegExpToken)))
         )(input)
 
       default: {
-        const _exhaustiveCheck: never = part
+        const _exhaustiveCheck: never = token
         throw new Error('Invalid regular expression type')
       }
     }
@@ -404,27 +404,27 @@ export const buildRegExpAST = (regExpAsString: string): RegExpType => {
 }
 
 export const regExpParserFromAST = (ast: RegExpType): Parser<string> =>
-  concat(andN(ast.map(evaluateRegExpPart)))
+  concat(andN(ast.map(evaluateRegExpToken)))
 
 const findRepetitions = (ast: RegExpType): RepetitionType[] => {
   return ast
-    .map(part => {
-      switch (part.type) {
+    .map(token => {
+      switch (token.type) {
         case 'singleChar':
         case 'characterClass':
           return []
 
         case 'parenthesized':
-          return findRepetitions(part.expr)
+          return findRepetitions(token.expr)
 
         case 'repetition':
-          return [part].concat(findRepetitions([part.expr]))
+          return [token].concat(findRepetitions([token.expr]))
 
         case 'alternation':
-          return findRepetitions(part.left).concat(findRepetitions(part.right))
+          return findRepetitions(token.left).concat(findRepetitions(token.right))
 
         default: {
-          const _exhaustiveCheck: never = part
+          const _exhaustiveCheck: never = token
           throw new Error('Invalid regular expression type')
         }
       }
@@ -433,28 +433,28 @@ const findRepetitions = (ast: RegExpType): RepetitionType[] => {
 }
 
 const addIndicesToRepetitions = (ast: RegExpType, index = 0) => {
-  ast.forEach(part => {
-    switch (part.type) {
+  ast.forEach(token => {
+    switch (token.type) {
       case 'singleChar':
       case 'characterClass':
         break
 
       case 'parenthesized':
-        addIndicesToRepetitions(part.expr)
+        addIndicesToRepetitions(token.expr)
         break
 
       case 'repetition':
-        part.index = index++
-        addIndicesToRepetitions([part.expr])
+        token.index = index++
+        addIndicesToRepetitions([token.expr])
         break
 
       case 'alternation':
-        addIndicesToRepetitions(part.left)
-        addIndicesToRepetitions(part.right)
+        addIndicesToRepetitions(token.left)
+        addIndicesToRepetitions(token.right)
         break
 
       default: {
-        const _exhaustiveCheck: never = part
+        const _exhaustiveCheck: never = token
         throw new Error('Invalid regular expression type')
       }
     }
