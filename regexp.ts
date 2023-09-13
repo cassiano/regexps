@@ -41,6 +41,18 @@ import {
   error,
 } from '../reactive-spreadsheet/src/parser_combinators.ts'
 
+//////////////////
+// Global state //
+//////////////////
+
+let DEBUG = false
+let levelWaterMark: number
+const iterationLevelIndices: number[] = []
+
+//////////////////////////
+// Types and interfaces //
+//////////////////////////
+
 type CharacterClassRangeType = { from: SingleChar; to: SingleChar }
 
 type RepetitionLimitsType = {
@@ -181,7 +193,7 @@ const repetition: Parser<RepetitionType> = map(
 
 const factor: Parser<RegExpTypePart> = or4(repetition, singleChar, characterClass, parenthesized)
 
-const iterationLevelIndices: number[] = []
+type IterationIndicesType = number | IterationIndicesType[] // Examples: Level 0 -> undefined, Level 1 -> 5, Level 2 -> [3, 4, 6], Level 3 -> [ [2, 4], [1, 3], [2, 5] ] etc.
 
 const mutableLimitsManyN =
   <A>(
@@ -449,10 +461,6 @@ const addIndicesToRepetitions = (ast: RegExpType, index = 0) => {
   })
 }
 
-let levelWaterMark: number
-
-type IterationIndicesType = number | IterationIndicesType[] // Examples: Level 0 -> undefined, Level 1 -> 5, Level 2 -> [3, 4, 6], Level 3 -> [ [2, 4], [1, 3], [2, 5] ] etc.
-
 const pruneFurtherIterationsForRemainingRepetitions = (
   currentRepetition: RepetitionType,
   allRepetitions: RepetitionType[],
@@ -614,6 +622,8 @@ export const buildAndMatch = (
 
   // Try to match the regular expression from left to right.
   for (let i = 0; i < (exactMatch ? 1 : input.length); i++) {
+    resetGlobalState()
+
     let stop: boolean = false
 
     const ast = buildRegExpAST(regExpAsString)
@@ -621,7 +631,6 @@ export const buildAndMatch = (
 
     const slicedInput = input.slice(i)
 
-    levelWaterMark = Infinity
     steps = 0
     stop = false
 
@@ -656,8 +665,13 @@ export const scan = (regExpAsString: string, input: string): string[] => {
   return matches.flat()
 }
 
-export const debugRegExp = (regExpAsString: string, input: string): ParserResult<string> => {
+const resetGlobalState = () => {
   levelWaterMark = Infinity
+  iterationLevelIndices.length = 0
+}
+
+export const debugRegExp = (regExpAsString: string, input: string): ParserResult<string> => {
+  resetGlobalState()
 
   let steps = 0
   const ast = buildRegExpAST(regExpAsString)
@@ -712,8 +726,6 @@ export const groupBy = <T>(collection: T[], fn: (prop: T) => string | number) =>
   }, {})
 
 export const times = <T>(n: number, fn: (index: number) => T): T[] => [...Array(n).keys()].map(fn)
-
-let DEBUG = true
 
 export const debug = (messageOrFalse: () => string | false): void => {
   if (DEBUG) {
