@@ -26,11 +26,10 @@ import {
   charRange,
   orN,
   concat,
-  anyChar,
   PERIOD,
   EMPTY_STRING,
   SingleChar,
-  allButChar,
+  anyCharExcept,
   many,
   succeededBy,
   allButCharSet,
@@ -117,7 +116,7 @@ const singleChar: Parser<SingleCharType> = map(
 )
 
 const dash = char('-')
-const characterClassChar = allButChar(']')
+const characterClassChar = anyCharExcept(']')
 
 const characterClassOption: Parser<string | CharacterClassRangeType> = or(
   map(or(joinedBy(letter, dash), joinedBy(digit, dash)), range => ({
@@ -250,6 +249,7 @@ const mutableLimitsManyN =
   }
 
 const DOLLAR_SIGN = '$'
+const NEW_LINE = '\n'
 
 const endOfString: Parser<string> = input =>
   input.length === 0 ? ['', ''] : [error('Input not empty'), input]
@@ -263,7 +263,7 @@ export const evaluateRegExpPart =
 
         switch (part.character) {
           case PERIOD:
-            parser = anyChar()
+            parser = anyCharExcept(NEW_LINE)
             break
           case DOLLAR_SIGN:
             parser = endOfString
@@ -729,6 +729,12 @@ export const debug = (messageOrFalse: () => string | false): void => {
 
 // import * as re from './regexp.ts'; import * as pc from '../reactive-spreadsheet/src/parser_combinators.ts'
 //
+// re.buildAndMatch('an+', 'banana')
+// re.buildAndMatch('(an)+', 'banana')
+// re.buildAndMatch('is+', 'mississipi')
+// re.buildAndMatch('(is+)+', 'mississipi')
+// re.buildAndMatch('/d{2}/D/d{2}/s*([ap]m)', '"12:50 am')
+//
 // re.buildAndMatch('a*', '...aa')
 // re.buildAndMatch('a+', '...aa')
 //
@@ -742,3 +748,5 @@ export const debug = (messageOrFalse: () => string | false): void => {
 // const parser = re.regExpParserFromAST(ast)
 // re.print(ast)
 // parser('xxxxxxxxxx')
+//
+// re.scan('/w+([.]/w+)*@/w+([.]/w+)+', '| john.doe@gmail.com | john@gmail.com.us | john.doe@ | @gmail.com | john@gmail | jo.hn.do.e@g.mail.co.m |')
