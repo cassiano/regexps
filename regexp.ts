@@ -301,7 +301,7 @@ export const evaluateRegExpPart =
       }
 
       case 'repetition': {
-        debug(() => `[repetition] level: ${part.level}, part.limits: ${part.limits}`)
+        debug(() => `[repetition] level: ${part.level}, part.limits: ${inspect(part.limits)}`)
 
         const [result, rest] = mutableLimitsManyN(
           evaluateRegExpPart(part.expr),
@@ -454,57 +454,53 @@ export const buildRegExpAST = (regExpAsString: string): RegExpType => {
   return result
 }
 
-export const regExpParser = (regExpAsString: string): Parser<string> =>
-  regExpParserFromAST(buildRegExpAST(regExpAsString))
+// export const regExpParser = (regExpAsString: string): Parser<string> =>
+//   regExpParserFromAST(buildRegExpAST(regExpAsString))
 
 export const regExpParserFromAST = (ast: RegExpType): Parser<string> =>
   concat(andN(ast.map(evaluateRegExpPart)))
 
-export const matchRegExp = (parser: Parser<string>, input: string): ParserResult<string> => {
-  let result!: string | Error
-  let rest!: string
+// export const matchRegExp = (parser: Parser<string>, input: string): ParserResult<string> => {
+//   let result!: string | Error
+//   let rest!: string
 
-  // Try to match the regular expression from left to right.
-  for (let i = 0; i < input.length; i++) {
-    ;[result, rest] = parser(input.slice(i))
+//   // Try to match the regular expression from left to right.
+//   for (let i = 0; i < input.length; i++) {
+//     ;[result, rest] = parser(input.slice(i))
 
-    if (!isError(result)) return [result, rest]
-  }
+//     if (!isError(result)) return [result, rest]
+//   }
 
-  return [result, rest]
-}
+//   return [result, rest]
+// }
 
-export const regExpMatcher =
-  (regExpAsString: string): Parser<string> =>
-  input => {
-    const parser = regExpParser(regExpAsString)
+// export const regExpMatcher =
+//   (regExpAsString: string): Parser<string> =>
+//   input => {
+//     const parser = regExpParser(regExpAsString)
 
-    return matchRegExp(parser, input)
-  }
+//     return matchRegExp(parser, input)
+//   }
 
-export const scan =
-  (regExpAsString: string) =>
-  (input: string): string[] => {
-    let stop = false
-    let rest = input
-    const matches = []
+export const scan = (regExpAsString: string, input: string): string[] => {
+  let stop = false
+  let rest = input
+  const matches = []
 
-    const parser = regExpParser(regExpAsString)
+  while (!stop) {
+    const [result, remaining] = buildAndMatch(regExpAsString, rest).match
 
-    while (!stop) {
-      const [result, remaining] = matchRegExp(parser, rest)
+    if (!isError(result)) {
+      matches.push(result)
 
-      if (!isError(result)) {
-        matches.push(result)
-
-        rest = remaining
-      }
-
-      if (isError(result) || remaining === EMPTY_STRING) stop = true
+      rest = remaining
     }
 
-    return matches.flat()
+    if (isError(result) || remaining === EMPTY_STRING) stop = true
   }
+
+  return matches.flat()
+}
 
 export const findRepetitions = (ast: RegExpType): RepetitionType[] => {
   return ast
@@ -563,25 +559,33 @@ export const addIndicesToRepetitions = (ast: RegExpType, index = 0) => {
 
 export const buildAndMatch = (
   regExpAsString: string,
-  input: string
+  input: string,
+  exactMatch = false
 ): { match: ParserResult<string>; steps: number } => {
-  levelWaterMark = Infinity
-
-  let stop = false
   let result, rest
-  let steps = 0
+  let steps: number = 0
 
-  const ast = buildRegExpAST(regExpAsString)
-  const parser = regExpParserFromAST(ast)
+  // Try to match the regular expression from left to right.
+  for (let i = 0; i < (exactMatch ? 1 : input.length); i++) {
+    let stop: boolean = false
 
-  while (!stop) {
-    steps++
-    ;[result, rest] = parser(input)
+    const ast = buildRegExpAST(regExpAsString)
+    const parser = regExpParserFromAST(ast)
 
-    stop = isError(result) ? !backtrack(ast) : true
+    const slicedInput = input.slice(i)
+
+    levelWaterMark = Infinity
+    steps = 0
+    stop = false
+
+    while (!stop) {
+      steps++
+      ;[result, rest] = parser(slicedInput)
+
+      if (isError(result)) stop = !backtrack(ast)
+      else return { match: [result, rest], steps }
+    }
   }
-
-  debug(() => `Steps: ${steps}`)
 
   return { match: [result!, rest!], steps }
 }
@@ -814,12 +818,12 @@ export const debug = (messageOrFalse: () => string | false): void => {
 
 // import * as re from './regexp.ts'; import * as pc from '../reactive-spreadsheet/src/parser_combinators.ts'
 //
-// re.regExpMatcher('a*')('...aa')
-// re.regExpMatcher('a+')('...aa')
+// re.buildAndMatch('a*', '...aa')
+// re.buildAndMatch('a+', '...aa')
 //
-// re.buildAndMatch('(x+x+)+y', 'xxxxxxxxxx') // 558 steps
-// re.buildAndMatch('(a+)*ab', 'aaaaaaaaaaaab') // 2050 steps
-// re.buildAndMatch('.*.*=.*', 'x=x') // 6 steps
+// re.buildAndMatch('(x+x+)+y', 'xxxxxxxxxx', true) // 558 steps
+// re.buildAndMatch('(a+)*ab', 'aaaaaaaaaaaab', true) // 2050 steps
+// re.buildAndMatch('.*.*=.*', 'x=x', true) // 6 steps
 //
 // await re.debugRegExp('(x+x+)+y', 'xxxxxxxxxx')
 //
