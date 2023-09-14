@@ -693,14 +693,14 @@ export const debugRegExp = (regExpAsString: string, input: string): ParserResult
       log(`\nSteps: ${steps}`)
       log(`levelWaterMark: ${levelWaterMark}`)
 
-      const key = prompt('\nPress ENTER to continue (or `q` to quit)')
-
-      if (key === 'q') break
-
       log('\n-------------------------------------------------------------------')
       log('regExpAsString:', regExpAsString)
       log('input:', input)
-      log('-------------------------------------------------------------------\n')
+      log('-------------------------------------------------------------------')
+
+      const key = prompt('\nPress ENTER to continue (or Q to quit)')
+
+      if (key === 'q') break
 
       if (!backtrack(ast)) break
     } else {
