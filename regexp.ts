@@ -36,6 +36,7 @@ import {
   charSequence,
   precededBy,
   error,
+  memoize,
 } from '../reactive-spreadsheet/src/parser_combinators.ts'
 
 //////////////////
@@ -119,31 +120,37 @@ const alternativeTerm: Parser<RegExpTokenType> = input =>
 
 const regExp: Parser<RegExpType> = many1(alternativeTerm)
 
-const singleChar: Parser<SingleCharType> = map(
-  allButCharSet('|{}[]()' + Object.keys(QUANTIFIERS).join(EMPTY_STRING)),
-  character => ({ type: 'singleChar', character } as SingleCharType)
+const singleChar: Parser<SingleCharType> = memoize(
+  map(
+    allButCharSet('|{}[]()' + Object.keys(QUANTIFIERS).join(EMPTY_STRING)),
+    character => ({ type: 'singleChar', character } as SingleCharType)
+  )
 )
 
 const dash = char('-')
 const characterClassChar = anyCharExcept(']')
 
-const characterClassOption: Parser<string | CharacterClassRangeType> = or(
-  map(or(joinedBy(letter, dash), joinedBy(digit, dash)), range => ({
-    from: range[0].toString(),
-    to: range[1].toString(),
-  })),
-  characterClassChar
+const characterClassOption: Parser<string | CharacterClassRangeType> = memoize(
+  or(
+    map(or(joinedBy(letter, dash), joinedBy(digit, dash)), range => ({
+      from: range[0].toString(),
+      to: range[1].toString(),
+    })),
+    characterClassChar
+  )
 )
 
 const CARET = '^'
 
-const characterClass: Parser<CharacterClassType> = map(
-  delimitedBy(char('['), and(optional(char(CARET)), many1(characterClassOption)), char(']')),
-  ([caret, options]) => ({
-    type: 'characterClass',
-    negated: caret === CARET,
-    options,
-  })
+const characterClass: Parser<CharacterClassType> = memoize(
+  map(
+    delimitedBy(char('['), and(optional(char(CARET)), many1(characterClassOption)), char(']')),
+    ([caret, options]) => ({
+      type: 'characterClass',
+      negated: caret === CARET,
+      options,
+    })
+  )
 )
 
 const parenthesized: Parser<ParenthesizedType> = input => {
@@ -162,20 +169,22 @@ const parenthesized: Parser<ParenthesizedType> = input => {
   return match
 }
 
-const quantifier: Parser<RepetitionLimitsType> = map(
-  or(
-    orN(Object.keys(QUANTIFIERS).map(charSequence)),
-    delimitedBy(char('{'), or(joinedBy(optional(natural), comma), natural), char('}'))
-  ),
-  result =>
-    typeof result === 'string'
-      ? QUANTIFIERS[result as keyof typeof QUANTIFIERS]
-      : typeof result === 'number'
-      ? { min: result, max: result }
-      : {
-          min: result[0] === EMPTY_STRING ? 0 : result[0],
-          max: result[1] === EMPTY_STRING ? Infinity : result[1],
-        }
+const quantifier: Parser<RepetitionLimitsType> = memoize(
+  map(
+    or(
+      orN(Object.keys(QUANTIFIERS).map(charSequence)),
+      delimitedBy(char('{'), or(joinedBy(optional(natural), comma), natural), char('}'))
+    ),
+    result =>
+      typeof result === 'string'
+        ? QUANTIFIERS[result as keyof typeof QUANTIFIERS]
+        : typeof result === 'number'
+        ? { min: result, max: result }
+        : {
+            min: result[0] === EMPTY_STRING ? 0 : result[0],
+            max: result[1] === EMPTY_STRING ? Infinity : result[1],
+          }
+  )
 )
 
 const repetition: Parser<RepetitionType> = map(
@@ -192,14 +201,13 @@ const factor: Parser<RegExpTokenType> = or4(repetition, singleChar, characterCla
 
 type IterationIndicesType = number | IterationIndicesType[] // Examples: Level 0 -> undefined, Level 1 -> 5, Level 2 -> [3, 4, 6], Level 3 -> [ [2, 4], [1, 3], [2, 5] ] etc.
 
-const mutableLimitsManyN =
-  <A>(
-    parser: Parser<A>,
-    limits: ManyNLimitsType & { maxCounts?: MaxCountsType },
-    level: number,
-    iterationIndex = 0
-  ): Parser<A[]> =>
-  input => {
+const mutableLimitsManyN = <A>(
+  parser: Parser<A>,
+  limits: ManyNLimitsType & { maxCounts?: MaxCountsType },
+  level: number,
+  iterationIndex = 0
+): Parser<A[]> =>
+  memoize(input => {
     iterationLevelIndices[level] = iterationIndex
 
     const defaultLimits = { min: 0, max: Infinity }
@@ -255,13 +263,14 @@ const mutableLimitsManyN =
       ),
       otherResults => [result, ...otherResults]
     )(rest)
-  }
+  })
 
 const DOLLAR_SIGN = '$'
 const NEW_LINE = '\n'
 
-const endOfString: Parser<string> = input =>
+const endOfString: Parser<string> = memoize(input =>
   input.length === 0 ? ['', ''] : [error('Input not empty'), input]
+)
 
 export const evaluateRegExpToken =
   (token: RegExpTokenType): Parser<string> =>
@@ -403,8 +412,9 @@ export const buildRegExpAST = (regExpAsString: string): RegExpType => {
   return result
 }
 
-export const regExpParserFromAST = (ast: RegExpType): Parser<string> =>
-  concat(andN(ast.map(evaluateRegExpToken)))
+export const regExpParserFromAST = memoize(
+  (ast: RegExpType): Parser<string> => concat(andN(ast.map(evaluateRegExpToken)))
+)
 
 const findRepetitions = (ast: RegExpType): RepetitionType[] => {
   return ast
@@ -767,10 +777,10 @@ assertMatches('a*', 'aa', ['aa', ''])
 assertMatches('a+', '...aa', ['aa', ''])
 assertMatches('(x+x+)+y', 'xxxxxxxxxxy', ['xxxxxxxxxxy', ''], true)
 
-assertIsError(buildAndMatch('(x+x+)+y', 'xxxxxxxxxx', true).match[0])
+assertIsError(buildAndMatch('(x+x+)+y', 'xxxxxxxxxx', true).match[0]) // 558 steps
 
-assertMatches('(a+)*ab', 'aaaaaaaaaaaab', ['aaaaaaaaaaaab', ''], true)
-assertMatches('.*.*=.*', 'x=x', ['x=x', ''], true)
+assertMatches('(a+)*ab', 'aaaaaaaaaaaab', ['aaaaaaaaaaaab', ''], true) // 2050 steps
+assertMatches('.*.*=.*', 'x=x', ['x=x', ''], true) // 6 steps
 
 assertEquals(
   scan(
