@@ -360,12 +360,15 @@ export const evaluateRegExpToken =
 
 const CHARACTER_CLASS_ABBREVIATIONS: { [index: SingleChar]: string } = {
   d: '[0-9]', // d = Decimal digit
-  b: '[0-1]', // b = Binary digit (non-standard)
-  o: '[0-7]', // o = Octal digit (non-standard)
   h: '[0-9a-fA-F]', // h = Hexadecimal digit
   w: '[0-9a-zA-Z_]', // w = Word character
   s: '[ \t\r\n\f]', // s = Space
   r: '[\r\n]', // r = carriage Return
+  b: '[0-1]', // b = Binary digit (non-standard)
+  o: '[0-7]', // o = Octal digit (non-standard)
+  l: '[a-z]', // l = Lowercase character (non-standard)
+  u: '[A-Z]', // u = Uppercase character (non-standard)
+  a: '[a-zA-Z]', // a = Alphabetic (lower or uppercase) character (non-standard)
 }
 
 const replaceCharacterClassAbbreviations = (regExpAsString: string): string => {
