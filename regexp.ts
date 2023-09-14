@@ -1,7 +1,4 @@
-// import {
-//   assert,
-//   assertEquals,
-// } from "https://deno.land/std@0.177.0/testing/asserts.ts";
+import { assertEquals, assertIsError } from 'https://deno.land/std@0.201.0/testing/asserts.ts'
 
 import {
   Parser,
@@ -45,7 +42,7 @@ import {
 // Global state //
 //////////////////
 
-let DEBUG = false
+let debugMode = true
 let levelWaterMark: number
 const iterationLevelIndices: number[] = []
 
@@ -735,7 +732,7 @@ export const groupBy = <T>(collection: T[], fn: (prop: T) => string | number) =>
 export const times = <T>(n: number, fn: (index: number) => T): T[] => [...Array(n).keys()].map(fn)
 
 export const debug = (messageOrFalse: () => string | false): void => {
-  if (DEBUG) {
+  if (debugMode) {
     const message = messageOrFalse()
 
     if (message === false) return
@@ -744,21 +741,50 @@ export const debug = (messageOrFalse: () => string | false): void => {
   }
 }
 
+///////////
+// Tests //
+///////////
+
+const assertMatches = (
+  regExpAsString: string,
+  input: string,
+  matchedResult: ParserResult<string>,
+  exactMatch = false
+) => assertEquals(buildAndMatch(regExpAsString, input, exactMatch).match, matchedResult)
+
+const previousDebugMode = debugMode
+debugMode = false
+
+assertMatches('an+', 'banana', ['an', 'ana'])
+assertMatches('(an)+', 'banana', ['anan', 'a'])
+assertMatches('iss', 'mississipi', ['iss', 'issipi'])
+assertMatches('(iss)+', 'mississipi', ['ississ', 'ipi'])
+assertMatches('is+', 'mississipi', ['iss', 'issipi'])
+assertMatches('(is+)+', 'mississipi', ['ississ', 'ipi'])
+assertMatches('/d{2}/D/d{2}/s*([ap]m)', '"12:50 am', ['12:50 am', ''])
+assertMatches('a*', '...aa', ['', '...aa'])
+assertMatches('a*', 'aa', ['aa', ''])
+assertMatches('a+', '...aa', ['aa', ''])
+assertMatches('(x+x+)+y', 'xxxxxxxxxxy', ['xxxxxxxxxxy', ''], true)
+
+assertIsError(buildAndMatch('(x+x+)+y', 'xxxxxxxxxx', true).match[0])
+
+assertMatches('(a+)*ab', 'aaaaaaaaaaaab', ['aaaaaaaaaaaab', ''], true)
+assertMatches('.*.*=.*', 'x=x', ['x=x', ''], true)
+
+assertEquals(
+  scan(
+    '/w+([.]/w+)*@/w+([.]/w+)+',
+    '| john.doe@gmail.com | john@gmail.com.us | john.doe@ | @gmail.com | john@gmail | jo.hn.do.e@g.mail.co.m |'
+  ),
+  ['john.doe@gmail.com', 'john@gmail.com.us', 'jo.hn.do.e@g.mail.co.m']
+)
+
+debugMode = previousDebugMode
+
 // import * as re from './regexp.ts'; import * as pc from '../reactive-spreadsheet/src/parser_combinators.ts'
 //
-// re.buildAndMatch('an+', 'banana')
-// re.buildAndMatch('(an)+', 'banana')
-// re.buildAndMatch('is+', 'mississipi')
-// re.buildAndMatch('(is+)+', 'mississipi')
 // re.buildAndMatch('m(is+)+is', 'mississipi')   // DOES NOT WORK!
-// re.buildAndMatch('/d{2}/D/d{2}/s*([ap]m)', '"12:50 am')
-//
-// re.buildAndMatch('a*', '...aa')
-// re.buildAndMatch('a+', '...aa')
-//
-// re.buildAndMatch('(x+x+)+y', 'xxxxxxxxxx', true) // 558 steps
-// re.buildAndMatch('(a+)*ab', 'aaaaaaaaaaaab', true) // 2050 steps
-// re.buildAndMatch('.*.*=.*', 'x=x', true) // 6 steps
 //
 // re.debugRegExp('(x+x+)+y', 'xxxxxxxxxx')
 //
@@ -766,5 +792,3 @@ export const debug = (messageOrFalse: () => string | false): void => {
 // const parser = re.regExpParserFromAST(ast)
 // re.print(ast)
 // parser('xxxxxxxxxx')
-//
-// re.scan('/w+([.]/w+)*@/w+([.]/w+)+', '| john.doe@gmail.com | john@gmail.com.us | john.doe@ | @gmail.com | john@gmail | jo.hn.do.e@g.mail.co.m |')
