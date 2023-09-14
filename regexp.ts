@@ -45,6 +45,7 @@ import {
 
 let debugMode = true
 let levelWaterMark: number
+let currentLevel = 0
 const iterationLevelIndices: number[] = []
 
 //////////////////////////
@@ -105,8 +106,6 @@ const QUANTIFIERS: { [quantifier: SingleChar]: RepetitionLimitsType } = {
 }
 
 const alternation = char('|')
-
-let currentLevel = 0
 
 const alternativeTerm: Parser<RegExpTokenType> = input =>
   or(
@@ -333,8 +332,7 @@ export const evaluateRegExpToken =
           case 1: {
             token.limits.maxCounts ??= []
             const maxCounts = token.limits.maxCounts as number[] // 1 dimension (standard array)
-            const [i0] = iterationLevelIndices
-            maxCounts[i0] = result.length
+            maxCounts[iterationLevelIndices[0]] = result.length
             break
           }
 
@@ -784,7 +782,7 @@ assertMatches('.*.*=.*', 'x=x', ['x=x', ''], true) // 6 steps
 
 assertEquals(
   scan(
-    '/w+([.]/w+)*@/w+([.]/w+)+',
+    '/w+(/./w+)*@/w+(/./w+)+',
     '| john.doe@gmail.com | john@gmail.com.us | john.doe@ | @gmail.com | john@gmail | jo.hn.do.e@g.mail.co.m |'
   ),
   ['john.doe@gmail.com', 'john@gmail.com.us', 'jo.hn.do.e@g.mail.co.m']
