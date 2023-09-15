@@ -87,7 +87,6 @@ type RepetitionType = {
   limits: RepetitionLimitsType & {
     maxCounts?: MaxCountsType
   }
-  maxLimitUpdated?: boolean
 }
 
 type RegExpTokenType =
