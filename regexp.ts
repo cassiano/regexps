@@ -26,7 +26,6 @@ import {
   PERIOD,
   EMPTY_STRING,
   SingleChar,
-  anyCharExcept,
   many,
   succeededBy,
   allButCharSet,
@@ -37,6 +36,7 @@ import {
   precededBy,
   error,
   memoize,
+  allButChar,
 } from '../reactive-spreadsheet/src/parser_combinators.ts'
 
 //////////////////
@@ -127,7 +127,7 @@ const singleChar: Parser<SingleCharType> = memoize(
 )
 
 const dash = char('-')
-const characterClassChar = anyCharExcept(']')
+const characterClassChar = allButChar(']')
 
 const characterClassOption: Parser<string | CharacterClassRangeType> = memoize(
   or(
@@ -280,7 +280,7 @@ export const evaluateRegExpToken =
 
         switch (token.character) {
           case PERIOD:
-            parser = anyCharExcept(NEW_LINE)
+            parser = allButChar(NEW_LINE)
             break
           case DOLLAR_SIGN:
             parser = endOfString
