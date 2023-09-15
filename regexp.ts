@@ -763,6 +763,8 @@ const assertMatches = (
 const previousDebugMode = debugMode
 debugMode = false
 
+log('Running tests...')
+
 assertMatches('an+', 'banana', ['an', 'ana'])
 assertMatches('(an)+', 'banana', ['anan', 'a'])
 assertMatches('iss', 'mississipi', ['iss', 'issipi'])
@@ -787,6 +789,8 @@ assertEquals(
   ),
   ['john.doe@gmail.com', 'john@gmail.com.us', 'jo.hn.do.e@g.mail.co.m']
 )
+
+log('Done!')
 
 debugMode = previousDebugMode
 
