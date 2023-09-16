@@ -383,7 +383,7 @@ const replaceCharacterClassAbbreviations = (regExpAsString: string): string => {
 
     // Create "negated" upper-cased abbreviations (\D, \H, \W etc, as well as /D, /H, /W etc).
     abbrev = abbrev.toUpperCase()
-    characterClass = characterClass.slice(0, 1) + '^' + characterClass.slice(1)
+    characterClass = characterClass.slice(0, 1) + CARET + characterClass.slice(1)
     regExpAsString = regExpAsString
       .replaceAll(`\\${abbrev}`, characterClass)
       .replaceAll(`/${abbrev}`, characterClass)
@@ -622,7 +622,7 @@ export const buildAndMatch = (
   let result, rest
   let steps: number = 0
 
-  if (regExpAsString.startsWith('^')) {
+  if (regExpAsString.startsWith(CARET)) {
     regExpAsString = regExpAsString.slice(1)
     exactMatch = true
   }
