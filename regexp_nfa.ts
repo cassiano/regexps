@@ -842,7 +842,7 @@ export const buildAndMatch2 = (
   const nfa = buildRegExpASTAndCreateNfaNodeFromRegExp(regExpAsString)
 
   // Try to match the regular expression from left to right.
-  for (let index = 0; index < (exactMatch ? 1 : input.length); index++) {
+  for (let index = 0; index < (exactMatch || input.length === 0 ? 1 : input.length); index++) {
     let rest: string
 
     const slicedInput = input.slice(index)
@@ -851,7 +851,6 @@ export const buildAndMatch2 = (
 
     debug(() => `match: ${inspect(match)}`)
 
-    // TODO: corrigir! Ex: re.buildAndMatch2('^/b*x$', '0101x')
     if (match.matched) {
       return {
         match: [
