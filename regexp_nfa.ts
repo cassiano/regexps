@@ -804,10 +804,24 @@ export const matchNfa = (
     case 'CNode':
       debug(() => `[input: '${input}', index: ${index}] Trying to match against CNode #${nfa.id}`)
 
-      if (matchNfa(nfa.next, input, index).matched)
-        return debug(() => 'Passed!'), { matched: true, input, index }
-      else if (matchNfa(nfa.nextAlt, input, index).matched)
-        return debug(() => 'Passed!'), { matched: true, input, index }
+      let match = matchNfa(nfa.next, input, index)
+
+      if (match.matched)
+        return (
+          debug(() => `[input: '${input}', index: ${index}] Passed CNode #${nfa.id}'s next path!`),
+          match
+        )
+      else {
+        match = matchNfa(nfa.nextAlt, input, index)
+
+        if (match.matched)
+          return (
+            debug(
+              () => `[input: '${input}', index: ${index}] Passed CNode #${nfa.id}'s nextAlt path!`
+            ),
+            match
+          )
+      }
 
       break
 
