@@ -652,6 +652,48 @@ export const createNfaNodeFromRegExpToken = (
     }
 
     case 'repetition': {
+      // Possible cases:
+      // (notice below that `,}` ≅ +Infinity)
+      //
+      // a+b ≅ a{1,}b: ⭢ a ⮂ +
+      //                       ↓
+      //                       b ⭢
+      //
+      // a*b ≅ a{0,}b: ⭢ + ⮂ a
+      //                  ↓
+      //                  b ⭢
+      //
+      // a?b ≅ a{0,1}b: ⭢ + ⭢ a
+      //                   ↓  ↙
+      //                    b ⭢
+      //
+      // a{m}b ≅ a{m,m}b: ⭢ a ⭢ a ⭢ a ⭢ ... a ⭢ ⭢ b ⭢
+      //                     ▙▃▃▃ (m times) ▃▃▟
+      //
+      // a{m,}b ≅ ⭢ a ⭢ a ⭢ a ⭢ ... a ⮂ +
+      //             ▙▃▃▃ (m times) ▃▃▟    ↓
+      //                                   b ⭢
+      //
+      // a{,n}b ≅ ⭢ + ⭢ a    ▜
+      //             ↓   ↓    ▐
+      //          ⭠ b ⭠ +    ▐
+      //             ⭡   ↓  (n times)
+      //             │   a    ▐
+      //             │   ↓    ▐
+      //             ├── +    ▐
+      //             │  ...   ▐
+      //             └── a    ▟
+      //
+      // a{m,n}b ≅ ⭢ a ⭢ a ⭢ a ⭢ ... a ⭢ + ⭢ a   ▜
+      //              ▙▃▃▃ (m times) ▃▃▟    ↓    ↓   ▐
+      //                                 ⭠ b ⭠ +    ▐
+      //                                    ⭡   ↓  (n-m times)
+      //                                    │   a    ▐
+      //                                    │   ↓    ▐
+      //                                    ├── +    ▐
+      //                                    │  ...   ▐
+      //                                    └── a    ▟
+
       const limits = astNode.limits
       const repeatingNode = createNfaNodeFromRegExpToken(astNode.expr)
 
@@ -787,6 +829,7 @@ export const buildAndMatch2 = (
 
     debug(() => `match: ${inspect(match)}`)
 
+    // TODO: corrigir! Ex: re.buildAndMatch2('^/b*x$', '0101x')
     if (match.matched) {
       return {
         match: [
