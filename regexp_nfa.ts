@@ -652,47 +652,55 @@ export const createNfaNodeFromRegExpToken = (
     }
 
     case 'repetition': {
+      // Notice below that:
+      //
+      // ▬▶ []: initial state
+      // [] ▬▶: end state
+      // - [a], [b]: NNodes or CNodes
+      // - [+]: CNode
+      // - m, n: natural numbers
+      // - `,}` ≅ +Infinity
+      //
       // Possible cases:
-      // (notice below that `,}` ≅ +Infinity)
       //
-      // a+b ≅ a{1,}b: ⭢ a ⮂ +
-      //                       ↓
-      //                       b ⭢
+      // a+b ≅ a{1,}b: ▬▶ [a] ⮂ [+]
+      //                          ↓
+      //                         [b] ▬▶
       //
-      // a*b ≅ a{0,}b: ⭢ + ⮂ a
-      //                  ↓
-      //                  b ⭢
+      // a*b ≅ a{0,}b: ▬▶ [+] ⮂ [a]
+      //                   ↓
+      //                  [b] ▬▶
       //
-      // a?b ≅ a{0,1}b: ⭢ + ⭢ a
-      //                   ↓  ↙
-      //                    b ⭢
+      // a?b ≅ a{0,1}b: ▬▶ [+] ⭢ [a]
+      //                     ↓  ↙
+      //                     [b] ▬▶
       //
-      // a{m}b ≅ a{m,m}b: ⭢ a ⭢ a ⭢ a ⭢ ... a ⭢ ⭢ b ⭢
-      //                     ▙▃▃▃ (m times) ▃▃▟
+      // a{m}b ≅ a{m,m}b: ▬▶ [a] ⭢ [a] ⭢ [a] ⭢ ... [a] ⭢ ⭢ [b] ▬▶
+      //                      ▙▃▃▃▃▃▃ (m times) ▃▃▃▃▃▃▟
       //
-      // a{m,}b ≅ ⭢ a ⭢ a ⭢ a ⭢ ... a ⮂ +
-      //             ▙▃▃▃ (m times) ▃▃▟    ↓
-      //                                   b ⭢
+      // a{m,}b ≅ ▬▶ [a] ⭢ [a] ⭢ [a] ⭢ ... [a] ⮂ [+]
+      //              ▙▃▃▃▃▃▃ (m times) ▃▃▃▃▃▃▟      ↓
+      //                                            [b] ▬▶
       //
-      // a{,n}b ≅ ⭢ + ⭢ a    ▜
-      //             ↓   ↓    ▐
-      //          ⭠ b ⭠ +    ▐
-      //             ⭡   ↓  (n times)
-      //             │   a    ▐
-      //             │   ↓    ▐
-      //             ├── +    ▐
-      //             │  ...   ▐
-      //             └── a    ▟
+      // a{,n}b ≅ ▬▶ [+] ⭢ [a]   ▜
+      //              ↓      ↓    ▐
+      //          ◀▬ [b] ⭠ [+]   ▐
+      //              ⭡     ↓   (n times)
+      //              │     [a]   ▐
+      //              │      ↓    ▐
+      //              ├──── [+]   ▐
+      //              │     ...   ▐
+      //              └──── [a]   ▟
       //
-      // a{m,n}b ≅ ⭢ a ⭢ a ⭢ a ⭢ ... a ⭢ + ⭢ a   ▜
-      //              ▙▃▃▃ (m times) ▃▃▟    ↓    ↓   ▐
-      //                                 ⭠ b ⭠ +    ▐
-      //                                    ⭡   ↓  (n-m times)
-      //                                    │   a    ▐
-      //                                    │   ↓    ▐
-      //                                    ├── +    ▐
-      //                                    │  ...   ▐
-      //                                    └── a    ▟
+      // a{m,n}b ≅ ▬▶ [a] ⭢ [a] ⭢ [a] ⭢ ... [a] ⭢ [+] ⭢ [a]   ▜
+      //               ▙▃▃▃▃▃▃ (m times) ▃▃▃▃▃▃▟      ↓     ↓     ▐
+      //                                          ◀▬ [b] ⭠ [+]   ▐
+      //                                              ⭡     ↓   (n-m times)
+      //                                              │     [a]   ▐
+      //                                              │      ↓    ▐
+      //                                              ├──── [+]   ▐
+      //                                              │     ...   ▐
+      //                                              └──── [a]   ▟
 
       const limits = astNode.limits
       const repeatingNode = createNfaNodeFromRegExpToken(astNode.expr)
