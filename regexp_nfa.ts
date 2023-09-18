@@ -351,7 +351,7 @@ declare const Deno: {
 
 export const log = console.log
 
-export const inspect = (value: object) =>
+export const inspect = (value: any) =>
   Deno.inspect(value, { depth: 999, colors: true }) as unknown as string
 export const print = (value: object) => log(inspect(value))
 
@@ -499,104 +499,34 @@ const mapCharacterClassOptions = memoize((options: CharacterClassOptionsType) =>
   options.flatMap(option => (typeof option === 'string' ? option : mapCharacterClassRange(option)))
 )
 
-const copyNode = (
+const cloneNode = (
   node: NodeType | null | undefined,
   newNext: NodeType | null | undefined
 ): NodeType | null | undefined => {
+  debug(() => `Cloning node ${inspect(node)}`)
+
   if (node === null || node === undefined) return node
 
-  const next = node.next !== undefined ? copyNode(node.next, newNext) : newNext
+  const next = node.next !== undefined ? cloneNode(node.next, newNext) : newNext
 
   switch (node.type) {
     case 'NNode':
       return createNNode(node.character, {
         next,
       })
+
     case 'CNode':
       return createCNode(
         next,
-        node.nextAlt !== undefined ? copyNode(node.nextAlt, newNext) : newNext
+        node.nextAlt !== undefined ? cloneNode(node.nextAlt, newNext) : newNext
       )
+
+    default: {
+      const _exhaustiveCheck: never = node
+      throw new Error('Invalid NFA node type')
+    }
   }
 }
-
-// Non-negative (default) case for character class '[a-dxyz]':
-//
-// {
-//   type: "CNode",
-//   id: 16,
-//   next: { type: "NNode", id: 18, character: "a", escaped: false, next: undefined },
-//   nextAlt: {
-//     type: "CNode",
-//     id: 15,
-//     next: { type: "NNode", id: 17, character: "b", escaped: false, next: undefined },
-//     nextAlt: {
-//       type: "CNode",
-//       id: 14,
-//       next: { type: "NNode", id: 16, character: "c", escaped: false, next: undefined },
-//       nextAlt: {
-//         type: "CNode",
-//         id: 13,
-//         next: { type: "NNode", id: 15, character: "d", escaped: false, next: undefined },
-//         nextAlt: {
-//           type: "CNode",
-//           id: 12,
-//           next: { type: "NNode", id: 14, character: "x", escaped: false, next: undefined },
-//           nextAlt: {
-//             type: "CNode",
-//             id: 11,
-//             next: { type: "NNode", id: 13, character: "y", escaped: false, next: undefined },
-//             nextAlt: { type: "NNode", id: 12, character: "z", escaped: false, next: undefined }
-//           }
-//         }
-//       }
-//     }
-//   }
-// }
-//
-// Negative case for character class '[a-dxyz]':
-//
-// {
-//   type: "CNode",
-//   id: 24,
-//   next: { type: "NNode", id: 27, character: "a", escaped: false, next: null },
-//   nextAlt: {
-//     type: "CNode",
-//     id: 23,
-//     next: { type: "NNode", id: 26, character: "b", escaped: false, next: null },
-//     nextAlt: {
-//       type: "CNode",
-//       id: 22,
-//       next: { type: "NNode", id: 25, character: "c", escaped: false, next: null },
-//       nextAlt: {
-//         type: "CNode",
-//         id: 21,
-//         next: { type: "NNode", id: 24, character: "d", escaped: false, next: null },
-//         nextAlt: {
-//           type: "CNode",
-//           id: 20,
-//           next: { type: "NNode", id: 23, character: "x", escaped: false, next: null },
-//           nextAlt: {
-//             type: "CNode",
-//             id: 19,
-//             next: { type: "NNode", id: 22, character: "y", escaped: false, next: null },
-//             nextAlt: {
-//               type: "CNode",
-//               id: 18,
-//               next: { type: "NNode", id: 19, character: "z", escaped: false, next: null },
-//               nextAlt: {
-//                 type: "CNode",
-//                 id: 17,
-//                 next: { type: "NNode", id: 20, character: ".", escaped: false, next: undefined },
-//                 nextAlt: { type: "NNode", id: 21, character: "\n", escaped: false, next: undefined }
-//               }
-//             }
-//           }
-//         }
-//       }
-//     }
-//   }
-// }
 
 export const createNfaNodeFromRegExp = (ast: RegExpType, nextNode?: NodeType | null): NodeType => {
   let node: NodeType | null | undefined = nextNode
@@ -627,6 +557,84 @@ export const createNfaNodeFromRegExpToken = (
       return createNfaNodeFromRegExp(astNode.expr, nextNode)
 
     case 'characterClass': {
+      // Non-negative (default) case for character class '[a-dxyz]':
+      //
+      // {
+      //   type: "CNode",
+      //   id: 16,
+      //   next: { type: "NNode", id: 18, character: "a", escaped: false, next: undefined },
+      //   nextAlt: {
+      //     type: "CNode",
+      //     id: 15,
+      //     next: { type: "NNode", id: 17, character: "b", escaped: false, next: undefined },
+      //     nextAlt: {
+      //       type: "CNode",
+      //       id: 14,
+      //       next: { type: "NNode", id: 16, character: "c", escaped: false, next: undefined },
+      //       nextAlt: {
+      //         type: "CNode",
+      //         id: 13,
+      //         next: { type: "NNode", id: 15, character: "d", escaped: false, next: undefined },
+      //         nextAlt: {
+      //           type: "CNode",
+      //           id: 12,
+      //           next: { type: "NNode", id: 14, character: "x", escaped: false, next: undefined },
+      //           nextAlt: {
+      //             type: "CNode",
+      //             id: 11,
+      //             next: { type: "NNode", id: 13, character: "y", escaped: false, next: undefined },
+      //             nextAlt: { type: "NNode", id: 12, character: "z", escaped: false, next: undefined }
+      //           }
+      //         }
+      //       }
+      //     }
+      //   }
+      // }
+      //
+      // Negative case for character class '[a-dxyz]':
+      //
+      // {
+      //   type: "CNode",
+      //   id: 24,
+      //   next: { type: "NNode", id: 27, character: "a", escaped: false, next: null },
+      //   nextAlt: {
+      //     type: "CNode",
+      //     id: 23,
+      //     next: { type: "NNode", id: 26, character: "b", escaped: false, next: null },
+      //     nextAlt: {
+      //       type: "CNode",
+      //       id: 22,
+      //       next: { type: "NNode", id: 25, character: "c", escaped: false, next: null },
+      //       nextAlt: {
+      //         type: "CNode",
+      //         id: 21,
+      //         next: { type: "NNode", id: 24, character: "d", escaped: false, next: null },
+      //         nextAlt: {
+      //           type: "CNode",
+      //           id: 20,
+      //           next: { type: "NNode", id: 23, character: "x", escaped: false, next: null },
+      //           nextAlt: {
+      //             type: "CNode",
+      //             id: 19,
+      //             next: { type: "NNode", id: 22, character: "y", escaped: false, next: null },
+      //             nextAlt: {
+      //               type: "CNode",
+      //               id: 18,
+      //               next: { type: "NNode", id: 19, character: "z", escaped: false, next: null },
+      //               nextAlt: {
+      //                 type: "CNode",
+      //                 id: 17,
+      //                 next: { type: "NNode", id: 20, character: ".", escaped: false, next: undefined },
+      //                 nextAlt: { type: "NNode", id: 21, character: "\n", escaped: false, next: undefined }
+      //               }
+      //             }
+      //           }
+      //         }
+      //       }
+      //     }
+      //   }
+      // }
+
       const options = mapCharacterClassOptions(astNode.options)
       let lastNode: NodeType = createNNode(options.at(-1)!, { next: nextNode })
 
@@ -734,7 +742,7 @@ export const createNfaNodeFromRegExpToken = (
 
       if (limits.max !== Infinity) {
         times(limits.max - limits.min, () => {
-          const rightNNode = copyNode(repeatingNode, rightNNodeNext)
+          const rightNNode = cloneNode(repeatingNode, rightNNodeNext)
 
           rightCNode = createCNode(rightNNode, nextNode)
 
@@ -744,7 +752,7 @@ export const createNfaNodeFromRegExpToken = (
       else {
         rightCNode = createCNode(undefined, nextNode)
 
-        const rightNNode = copyNode(repeatingNode, rightCNode)
+        const rightNNode = cloneNode(repeatingNode, rightCNode)
 
         rightCNode.next = rightNNode
       }
@@ -752,7 +760,7 @@ export const createNfaNodeFromRegExpToken = (
       let leftNNodeNext: NodeType | null | undefined = rightCNode
 
       times(limits.min, () => {
-        const leftNNode = copyNode(repeatingNode, leftNNodeNext)
+        const leftNNode = cloneNode(repeatingNode, leftNNodeNext)
 
         leftNNodeNext = leftNNode
       })
