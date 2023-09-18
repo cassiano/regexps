@@ -500,13 +500,13 @@ const mapCharacterClassOptions = memoize((options: CharacterClassOptionsType) =>
 )
 
 // FIXME: stack overflow when re.buildAndMatch2('/w+(/./w+)*@/w+(/./w+)+', 'john.doe@gmail.com').
-const innerNext = (
+const getInnerNext = (
   node: NodeType,
   breadcrumbs: (NodeType | null | undefined)[] = []
 ): NodeType | null | undefined => (
   breadcrumbs.push(node),
   node.next !== undefined && node.next !== null && breadcrumbs.indexOf(node.next) === -1
-    ? innerNext(node.next, breadcrumbs)
+    ? getInnerNext(node.next, breadcrumbs)
     : node.next
 )
 
@@ -536,7 +536,7 @@ const cloneNode = (
   let cycleDetected = false
 
   if (node.next !== undefined) {
-    if (node.next !== null && innerNext(node) === node) {
+    if (node.next !== null && getInnerNext(node) === node) {
       debug(() => `Cycle detected`)
 
       cycleDetected = true
@@ -572,7 +572,7 @@ const cloneNode = (
     }
   }
 
-  if (cycleDetected) clone.next!.next = clone
+  if (cycleDetected) setInnerNext(clone, clone)
 
   debug(() => `Clone of node #${node.id}: ${inspect(clone)}`)
 
