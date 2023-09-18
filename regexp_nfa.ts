@@ -421,17 +421,6 @@ log('Done!')
 
 debugMode = previousDebugMode
 
-// import * as re from './regexp_nfa.ts'; import * as pc from '../reactive-spreadsheet/src/parser_combinators.ts'
-//
-// re.buildAndMatch('m(is+)+is', 'mississipi')   // DOES NOT WORK!
-//
-// re.debugRegExp('(x+x+)+y', 'xxxxxxxxxx')
-//
-// const ast = re.buildRegExpAST('(x+x+)+y')
-// const parser = re.regExpParserFromAST(ast)
-// re.print(ast)
-// parser('xxxxxxxxxx')
-
 type CNodeType = { type: 'CNode'; id: number; next?: NodeType | null; nextAlt?: NodeType | null }
 type NNodeType = {
   type: 'NNode'
@@ -499,7 +488,7 @@ const mapCharacterClassOptions = memoize((options: CharacterClassOptionsType) =>
   options.flatMap(option => (typeof option === 'string' ? option : mapCharacterClassRange(option)))
 )
 
-// FIXME: stack overflow when re.buildAndMatch2('/w+(/./w+)*@/w+(/./w+)+', 'john.doe@gmail.com').
+// FIXME: stack overflow when re.buildAndMatch2('/w+(/./w+)*@/w+(/./w+)+', 'john.doe@gmail.com', { exactMatch: true, printAstAndNfaInDebugMode: false }).
 const getInnerNext = (
   node: NodeType,
   breadcrumbs: (NodeType | null | undefined)[] = []
@@ -555,6 +544,7 @@ const cloneNode = (
   switch (node.type) {
     case 'NNode':
       clone = createNNode(node.character, {
+        escaped: node.escaped,
         next,
       })
       break
@@ -574,7 +564,7 @@ const cloneNode = (
 
   if (cycleDetected) setInnerNext(clone, clone)
 
-  debug(() => `Clone of node #${node.id}: ${inspect(clone)}`)
+  debug(() => `Clone of ${node.type} #${node.id}: ${inspect(clone)}`)
 
   return clone
 }
@@ -687,7 +677,7 @@ export const createNfaNodeFromRegExpToken = (
       // }
 
       const options = mapCharacterClassOptions(astNode.options)
-      let lastNode: NodeType = createNNode(options.at(-1)!, { next: nextNode })
+      let lastNode: NodeType = createNNode(options.at(-1)!, { next: nextNode, escaped: true })
 
       if (astNode.negated) {
         const periodNode = createNNode(PERIOD, { next: nextNode }) // All but "\n"
@@ -702,7 +692,7 @@ export const createNfaNodeFromRegExpToken = (
       let accNode: NodeType = lastNode
 
       for (let i = options.length - 2; i >= 0; i--) {
-        const node = createNNode(options[i], { next: nextNode })
+        const node = createNNode(options[i], { next: nextNode, escaped: true })
 
         accNode = createCNode(node, accNode)
       }
@@ -825,15 +815,18 @@ export const createNfaNodeFromRegExpToken = (
   }
 }
 
-export const buildRegExpASTAndCreateNfaNodeFromRegExp = (regExpAsString: string): NodeType => {
+export const buildRegExpASTAndCreateNfaNodeFromRegExp = (
+  regExpAsString: string,
+  { printAstAndNfaInDebugMode = true } = {}
+): NodeType => {
   const previousNNodeCount = nNodeCount
   const previousCNodeCount = cNodeCount
 
   const ast = buildRegExpAST(regExpAsString)
-  debug(() => `\nAST: \n\n${inspect(ast)}`)
+  debug(() => printAstAndNfaInDebugMode && `\nAST: \n\n${inspect(ast)}`)
 
   const nfa = createNfaNodeFromRegExp(ast)
-  debug(() => `\nNFA: \n\n${inspect(nfa)}`)
+  debug(() => printAstAndNfaInDebugMode && `\nNFA: \n\n${inspect(nfa)}`)
 
   debug(
     () =>
@@ -865,21 +858,27 @@ export const matchNfa = (
           }' against NNode #${nfa.id}`
       )
 
-      switch (nfa.character) {
-        case CARET:
-          if (index === 0) return debug(() => 'Passed!'), matchNfa(nfa.next, input, index)
-          break
-        case DOLLAR_SIGN:
-          if (input.length === 0) return debug(() => 'Passed!'), { matched: true, input, index }
-          break
-        case PERIOD:
-          if (currentChar !== NEW_LINE && input.length > 0)
-            return debug(() => 'Passed!'), matchNfa(nfa.next, rest, index + 1)
-          break
-        default:
-          if (currentChar === nfa.character)
-            return debug(() => 'Passed!'), matchNfa(nfa.next, rest, index + 1)
+      if (nfa.escaped) {
+        if (currentChar === nfa.character)
+          return debug(() => 'Passed!'), matchNfa(nfa.next, rest, index + 1)
+      } else {
+        switch (nfa.character) {
+          case CARET:
+            if (index === 0) return debug(() => 'Passed!'), matchNfa(nfa.next, input, index)
+            break
+          case DOLLAR_SIGN:
+            if (input.length === 0) return debug(() => 'Passed!'), { matched: true, input, index }
+            break
+          case PERIOD: // Matches anything but new line (\n).
+            if (currentChar !== NEW_LINE && input.length > 0)
+              return debug(() => 'Passed!'), matchNfa(nfa.next, rest, index + 1)
+            break
+          default:
+            if (currentChar === nfa.character)
+              return debug(() => 'Passed!'), matchNfa(nfa.next, rest, index + 1)
+        }
       }
+
       break
     }
 
@@ -919,9 +918,11 @@ export const matchNfa = (
 export const buildAndMatch2 = (
   regExpAsString: string,
   input: string,
-  exactMatch = false
+  { exactMatch = false, printAstAndNfaInDebugMode = true } = {}
 ): { match: string; index: number } | string => {
-  const nfa = buildRegExpASTAndCreateNfaNodeFromRegExp(regExpAsString)
+  const nfa = buildRegExpASTAndCreateNfaNodeFromRegExp(regExpAsString, {
+    printAstAndNfaInDebugMode,
+  })
 
   // Try to match the regular expression from left to right.
   for (let index = 0; index < (exactMatch || input.length === 0 ? 1 : input.length); index++) {
