@@ -499,6 +499,31 @@ const mapCharacterClassOptions = memoize((options: CharacterClassOptionsType) =>
   options.flatMap(option => (typeof option === 'string' ? option : mapCharacterClassRange(option)))
 )
 
+// FIXME: stack overflow when re.buildAndMatch2('/w+(/./w+)*@/w+(/./w+)+', 'john.doe@gmail.com').
+const innerNext = (
+  node: NodeType,
+  breadcrumbs: (NodeType | null | undefined)[] = []
+): NodeType | null | undefined => (
+  breadcrumbs.push(node),
+  node.next !== undefined && node.next !== null && breadcrumbs.indexOf(node.next) === -1
+    ? innerNext(node.next, breadcrumbs)
+    : node.next
+)
+
+const setInnerNext = (
+  node: NodeType,
+  newNext: NodeType | null | undefined,
+  breadcrumbs: (NodeType | null | undefined)[] = []
+): void => {
+  breadcrumbs.push(node)
+
+  if (node.next !== undefined && node.next !== null && breadcrumbs.indexOf(node.next) === -1) {
+    setInnerNext(node.next, newNext, breadcrumbs)
+  } else {
+    node.next = newNext
+  }
+}
+
 const cloneNode = (
   node: NodeType | null | undefined,
   newNext: NodeType | null | undefined
@@ -507,25 +532,51 @@ const cloneNode = (
 
   if (node === null || node === undefined) return node
 
-  const next = node.next !== undefined ? cloneNode(node.next, newNext) : newNext
+  let next: NodeType | null | undefined
+  let cycleDetected = false
+
+  if (node.next !== undefined) {
+    if (node.next !== null && innerNext(node) === node) {
+      debug(() => `Cycle detected`)
+
+      cycleDetected = true
+      setInnerNext(node, undefined)
+      next = cloneNode(node.next, undefined)
+      node.next.next = node
+    } else {
+      next = cloneNode(node.next, newNext)
+    }
+  } else {
+    next = newNext
+  }
+
+  let clone: NodeType | null | undefined
 
   switch (node.type) {
     case 'NNode':
-      return createNNode(node.character, {
+      clone = createNNode(node.character, {
         next,
       })
+      break
 
     case 'CNode':
-      return createCNode(
+      clone = createCNode(
         next,
         node.nextAlt !== undefined ? cloneNode(node.nextAlt, newNext) : newNext
       )
+      break
 
     default: {
       const _exhaustiveCheck: never = node
       throw new Error('Invalid NFA node type')
     }
   }
+
+  if (cycleDetected) clone.next!.next = clone
+
+  debug(() => `Clone of node #${node.id}: ${inspect(clone)}`)
+
+  return clone
 }
 
 export const createNfaNodeFromRegExp = (ast: RegExpType, nextNode?: NodeType | null): NodeType => {
@@ -662,77 +713,76 @@ export const createNfaNodeFromRegExpToken = (
     case 'repetition': {
       // Notice below that:
       //
-      // ▬▶ []: initial state
-      // [] ▬▶: end state
+      // ▬▶[a] or ▬▶[†]: initial states
+      // [b]▬▶ or ◀▬[b]: end states
       // - [a], [b]: NNodes or CNodes
       // - [†]: CNode
       // - m, n: natural numbers
-      // - `,}` ≅ +Infinity
       //
       // Possible cases:
       //
       // -------------------------------------------------------------------
       //
-      // a+b ≅ a{1,}b: ▬▶ [a] ⮂ [†]
-      //                          ↓
-      //                         [b] ▬▶
+      // a+b ≅ a{1,}b ≅ a{1,∞}b: ▬▶[a] ⮂ [†]
+      //                                   ↓
+      //                                  [b]▬▶
       //
       // -------------------------------------------------------------------
       //
-      // a*b ≅ a{0,}b: ▬▶ [†] ⮂ [a]
-      //                   ↓
-      //                  [b] ▬▶
+      // a*b ≅ a{0,}b ≅ a{0,∞}b: ▬▶[†] ⮂ [a]
+      //                            ↓
+      //                           [b]▬▶
       //
       // -------------------------------------------------------------------
       //
-      // a?b ≅ a{0,1}b: ▬▶ [†] ⭢ [a]
-      //                     ↓  ↙
-      //                     [b] ▬▶
+      // a?b ≅ a{0,1}b: ▬▶[†] ⭢ [a]
+      //                    ↓  ↙
+      //                    [b]▬▶
       //
       // -------------------------------------------------------------------
       //
-      // a{m}b ≅ a{m,m}b: ▬▶ [a] ⭢ [a] ⭢ [a] ⭢ ... [a] ⭢ [b] ▬▶
-      //                      ▙▃▃▃▃▃▃ (m times) ▃▃▃▃▃▃▟
+      // a{m}b ≅ a{m,m}b: ▬▶[a] ⭢ [a] ⭢ [a] ⭢ … [a] ⭢ [b]▬▶
+      //                     ▙▃▃▃▃▃ (m times) ▃▃▃▃▃▟
       //
       // -------------------------------------------------------------------
       //
-      // a{m,}b ≅ ▬▶ [a] ⭢ [a] ⭢ [a] ⭢ ... [a] ⮂ [†]
-      //              ▙▃▃▃▃▃▃ (m times) ▃▃▃▃▃▃▟      ↓
-      //                                            [b] ▬▶
+      // a{m,}b ≅ a{m,∞}b ≅ ▬▶[a] ⭢ [a] ⭢ [a] ⭢ … [a] ⮂ [†]
+      //                       ▙▃▃▃▃▃ (m times) ▃▃▃▃▃▟      ↓
+      //                                                   [b]▬▶
       //
       // -------------------------------------------------------------------
       //
-      // a{,n}b ≅ ▬▶ [†] ⭢ [a]   ▜
-      //              ↓      ↓    ▐
-      //          ◀▬ [b] ⭠ [†]   ▐
-      //              ⭡     ↓    ▐
-      //              │     [a]   ▐
-      //              │      ↓    ▐
-      //              ├──── [†]   ▐
-      //              │      ↓   (n times)
-      //              │     [a]   ▐
-      //              │      ↓    ▐
-      //              ├──── [†]   ▐
-      //              │      ↓    ▐
-      //              │     ...   ▐
-      //              └──── [a]   ▟
+      // a{,n}b ≅ a{0,n}b ≅ ▬▶[†] ⭢ [a]   ▜
+      //                       ↓      ↓    ▐
+      //                    ◀▬[b] ⭠ [†]   ▐
+      //                       ⭡     ↓    ▐
+      //                       │     [a]   ▐
+      //                       │      ↓    ▐
+      //                       ├──── [†]   ▐
+      //                       │      ↓   (n times)
+      //                       │     [a]   ▐
+      //                       │      ↓    ▐
+      //                       ├──── [†]   ▐
+      //                       │      ↓    ▐
+      //                       │      …    ▐
+      //                       └──── [a]   ▟
       //
       // -------------------------------------------------------------------
       //
-      // a{m,n}b ≅ ▬▶ [a] ⭢ [a] ⭢ [a] ⭢ ... [a] ⭢ [†] ⭢ [a]   ▜
-      //               ▙▃▃▃▃▃▃ (m times) ▃▃▃▃▃▃▟      ↓     ↓     ▐
-      //                                          ◀▬ [b] ⭠ [†]   ▐
-      //                                              ⭡     ↓    ▐
-      //                                              │     [a]   ▐
-      //                                              │      ↓    ▐
-      //                                              ├──── [†]   ▐
-      //                                              │      ↓   (n-m times)
-      //                                              │     [a]   ▐
-      //                                              │      ↓    ▐
-      //                                              ├──── [†]   ▐
-      //                                              │      ↓    ▐
-      //                                              │     ...   ▐
-      //                                              └──── [a]   ▟
+      // a{m,n}b ≅ ▬▶[a] ⭢ [a] ⭢ [a] ⭢ … [a] ⭢ [†] ⭢ [a]   ▜
+      //              ▙▃▃▃▃▃ (m times) ▃▃▃▃▃▟      ↓     ↓     ▐
+      //                                        ◀▬[b] ⭠ [†]   ▐
+      //                                           ⭡     ↓    ▐
+      //                                           │     [a]   ▐
+      //                                           │      ↓    ▐
+      //                                           ├──── [†]   ▐
+      //                                           │      ↓   (n-m times)
+      //                                           │     [a]   ▐
+      //                                           │      ↓    ▐
+      //                                           ├──── [†]   ▐
+      //                                           │      ↓    ▐
+      //                                           │      …    ▐
+      //                                           └──── [a]   ▟
 
       const limits = astNode.limits
       const repeatingNode = createNfaNodeFromRegExpToken(astNode.expr)
@@ -805,13 +855,13 @@ export const matchNfa = (
 
   switch (nfa.type) {
     case 'NNode': {
-      const firstChar = input[0]
+      const currentChar = input[0]
       const rest = input.slice(1)
 
       debug(
         () =>
           `[input: '${input}', index: ${index}] Trying to match character '${
-            firstChar ?? ''
+            currentChar ?? ''
           }' against NNode #${nfa.id}`
       )
 
@@ -823,11 +873,11 @@ export const matchNfa = (
           if (input.length === 0) return debug(() => 'Passed!'), { matched: true, input, index }
           break
         case PERIOD:
-          if (firstChar !== NEW_LINE)
+          if (currentChar !== NEW_LINE && input.length > 0)
             return debug(() => 'Passed!'), matchNfa(nfa.next, rest, index + 1)
           break
         default:
-          if (firstChar === nfa.character)
+          if (currentChar === nfa.character)
             return debug(() => 'Passed!'), matchNfa(nfa.next, rest, index + 1)
       }
       break
