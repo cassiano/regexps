@@ -517,7 +517,7 @@ const cloneNode = (
   node: NodeType | null | undefined,
   newNext: NodeType | null | undefined
 ): NodeType | null | undefined => {
-  debug(() => `Cloning node ${inspect(node)}`)
+  debug(() => `\nCloning node ${inspect(node)} with new next ${inspect(newNext)}`)
 
   if (node === null || node === undefined) return node
 
@@ -526,7 +526,7 @@ const cloneNode = (
 
   if (node.next !== undefined) {
     if (node.next !== null && getInnerNext(node) === node) {
-      debug(() => `Cycle detected`)
+      debug(() => `\n>>>>> Cycle detected <<<<<`)
 
       cycleDetected = true
       setInnerNext(node, undefined)
@@ -564,7 +564,7 @@ const cloneNode = (
 
   if (cycleDetected) setInnerNext(clone, clone)
 
-  debug(() => `Clone of ${node.type} #${node.id}: ${inspect(clone)}`)
+  debug(() => `\n---> Clone of node #${node.id}: ${inspect(clone)}`)
 
   return clone
 }
@@ -790,10 +790,28 @@ export const createNfaNodeFromRegExpToken = (
         })
       } // limits.max === Infinity
       else {
+        debug(
+          () =>
+            `[limits.max === Infinity] Creating CNode with next undefined and nextAlt ${inspect(
+              nextNode
+            )}`
+        )
         rightCNode = createCNode(undefined, nextNode)
 
+        debug(
+          () =>
+            `[limits.max === Infinity] Cloning node ${inspect(repeatingNode)} with next ${inspect(
+              rightCNode
+            )}`
+        )
         const rightNNode = cloneNode(repeatingNode, rightCNode)
 
+        debug(
+          () =>
+            `[limits.max === Infinity] Setting next of node ${inspect(rightCNode)} to ${inspect(
+              rightNNode
+            )}`
+        )
         rightCNode.next = rightNNode
       }
 
