@@ -704,7 +704,7 @@ export const matchNfa = (
               )
             break
 
-          case WORD_BOUNDARY:
+          case WORD_BOUNDARY: // A '\b' matches the (empty) string immediately before or after a "word".
             if (
               (index === 0 && isWordChar(currentChar)) ||
               (index > 0 && !isWordChar(previousChar) && isWordChar(currentChar)) ||
