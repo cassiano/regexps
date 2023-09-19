@@ -234,7 +234,7 @@ export const scan = (regExpAsString: string, input: string): string[] => {
   const matches = []
 
   while (true) {
-    const match = buildAndMatch(regExpAsString, rest, { showArrows: false })
+    const match = buildAndMatch(regExpAsString, rest)
 
     if (typeof match !== 'string') {
       matches.push(match.match)
@@ -280,7 +280,10 @@ export const debug = (messageOrFalse: () => string | false): void => {
   }
 }
 
+// CNode = "Cross" Node
 type CNodeType = { type: 'CNode'; id: number; next?: NodeType | null; nextAlt?: NodeType | null }
+
+// NNode = "Normal" Node
 type NNodeType = {
   type: 'NNode'
   id: number
@@ -671,19 +674,14 @@ export const buildRegExpASTAndCreateNfaNodeFromRegExp = (
 }
 
 export const matchNfa = (
-  nfa: NodeType | null | undefined,
+  currentNode: NodeType | null | undefined,
   input: string,
   index = 0
 ): { matched: boolean; input: string; index: number } => {
-  if (nfa === undefined) return { matched: true, input, index }
-  if (nfa === null) return { matched: false, input, index } // throw new Error(NO_MATCH_MESSAGE)
+  if (currentNode === undefined) return { matched: true, input, index }
+  if (currentNode === null) throw new Error(NO_MATCH_MESSAGE) // return { matched: false, input, index }
 
-  // FIXME: make this work: re.buildAndMatch('(a?)+', 'a')
-  //
-  // if (input.length === 0 && !(nfa.type === 'NNode' && nfa.character !== DOLLAR_SIGN))
-  //   return { matched: false, input, index }
-
-  switch (nfa.type) {
+  switch (currentNode.type) {
     case 'NNode': {
       const currentChar = input[0]
       const rest = input.slice(1)
@@ -692,28 +690,28 @@ export const matchNfa = (
         () =>
           `[input: '${input}', index: ${index}] Trying to match character '${
             currentChar ?? ''
-          }' against NNode #${nfa.id}`
+          }' against node ${nodeAsString(currentNode)}`
       )
 
-      if (nfa.escaped) {
-        if (currentChar === nfa.character)
+      if (currentNode.escaped) {
+        if (currentChar === currentNode.character)
           // Matches character literally.
-          return debug(() => 'Passed!'), matchNfa(nfa.next, rest, index + 1)
+          return debug(() => 'Passed!'), matchNfa(currentNode.next, rest, index + 1)
       } else {
-        switch (nfa.character) {
+        switch (currentNode.character) {
           case CARET: // A '^' matches the start of the input string.
-            if (index === 0) return debug(() => 'Passed!'), matchNfa(nfa.next, input, index)
+            if (index === 0) return debug(() => 'Passed!'), matchNfa(currentNode.next, input, index)
             break
           case DOLLAR_SIGN: // A '$' matches the end of the input string.
             if (input.length === 0) return debug(() => 'Passed!'), { matched: true, input, index }
             break
           case PERIOD: // A '.' matches anything but the new line (\n).
             if (currentChar !== NEW_LINE && input.length > 0)
-              return debug(() => 'Passed!'), matchNfa(nfa.next, rest, index + 1)
+              return debug(() => 'Passed!'), matchNfa(currentNode.next, rest, index + 1)
             break
           default: // Matches character literally.
-            if (currentChar === nfa.character)
-              return debug(() => 'Passed!'), matchNfa(nfa.next, rest, index + 1)
+            if (currentChar === currentNode.character)
+              return debug(() => 'Passed!'), matchNfa(currentNode.next, rest, index + 1)
         }
       }
 
@@ -721,22 +719,31 @@ export const matchNfa = (
     }
 
     case 'CNode':
-      debug(() => `[input: '${input}', index: ${index}] Trying to match against CNode #${nfa.id}`)
+      debug(
+        () =>
+          `[input: '${input}', index: ${index}] Trying to match against node ${nodeAsString(
+            currentNode
+          )}`
+      )
 
-      let match = matchNfa(nfa.next, input, index)
+      let match = matchNfa(currentNode.next, input, index)
 
       if (match.matched)
         return (
-          debug(() => `[input: '${input}', index: ${index}] Passed CNode #${nfa.id}'s next path!`),
+          debug(
+            () =>
+              `[input: '${input}', index: ${index}] Passed CNode #${currentNode.id}'s next path!`
+          ),
           match
         )
       else {
-        match = matchNfa(nfa.nextAlt, input, index)
+        match = matchNfa(currentNode.nextAlt, input, index)
 
         if (match.matched)
           return (
             debug(
-              () => `[input: '${input}', index: ${index}] Passed CNode #${nfa.id}'s nextAlt path!`
+              () =>
+                `[input: '${input}', index: ${index}] Passed CNode #${currentNode.id}'s nextAlt path!`
             ),
             match
           )
@@ -745,7 +752,7 @@ export const matchNfa = (
       break
 
     default: {
-      const _exhaustiveCheck: never = nfa
+      const _exhaustiveCheck: never = currentNode
       throw new Error('Invalid NFA node type')
     }
   }
@@ -756,7 +763,7 @@ export const matchNfa = (
 export const buildAndMatch = (
   regExpAsString: string,
   input: string,
-  { exactMatch = false, printAstAndNfaInDebugMode = true, showArrows = true } = {}
+  { exactMatch = false, printAstAndNfaInDebugMode = true, arrows = false } = {}
 ): { match: string; start: number; end: number } | typeof NO_MATCH_MESSAGE => {
   const nfa = buildRegExpASTAndCreateNfaNodeFromRegExp(regExpAsString, {
     printAstAndNfaInDebugMode,
@@ -776,7 +783,7 @@ export const buildAndMatch = (
       const matchedString = input.slice(index, match.index)
 
       return {
-        match: showArrows
+        match: arrows
           ? [input.slice(0, index), '->', matchedString, '<-', input.slice(match.index)].join(
               EMPTY_STRING
             )
@@ -800,7 +807,7 @@ const assertMatches = (
   matchedResult: string,
   exactMatch = false
 ) => {
-  const match = buildAndMatch(regExpAsString, input, { exactMatch })
+  const match = buildAndMatch(regExpAsString, input, { exactMatch, arrows: true })
 
   assertEquals(typeof match === 'string' ? match : match.match, matchedResult)
 }
@@ -826,6 +833,7 @@ assertMatches('(x+x+)+y', 'xxxxxxxxxxy', '->xxxxxxxxxxy<-')
 assertMatches('(x+x+)+y', 'xxxxxxxxxx', NO_MATCH_MESSAGE)
 assertMatches('(a+)*ab', 'aaaaaaaaaaaab', '->aaaaaaaaaaaab<-')
 assertMatches('.*.*=.*', 'x=x', '->x=x<-')
+assertMatches('a*'.repeat(100), 'a'.repeat(1000), '->' + 'a'.repeat(1000) + '<-')
 
 assertEquals(
   scan(
