@@ -868,8 +868,11 @@ assertMatches('^a+', '...aa', NO_MATCH_MESSAGE)
 assertMatches('^a+', 'aa', '->aa<-')
 assertMatches('^a+$', 'aa...', NO_MATCH_MESSAGE)
 assertMatches('^a+$', 'aa', '->aa<-')
+assertMatches('\b', 'some_WORD', '-><-some_WORD')
 assertMatches('\b/w{4}', '           some_WORD   ', '           ->some<-_WORD   ')
 assertMatches('/w{4}\b', '           some_WORD   ', '           some_->WORD<-   ')
+assertMatches('\b/w{4}', 'some_WORD   ', '->some<-_WORD   ')
+assertMatches('/w{4}\b', '           some_WORD', '           some_->WORD<-')
 
 assertEquals(
   scan(
