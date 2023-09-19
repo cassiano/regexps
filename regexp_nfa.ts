@@ -44,7 +44,7 @@ const NO_MATCH_MESSAGE = '(sorry, no match)'
 // Global state //
 //////////////////
 
-let debugMode = false
+let debugMode = true
 
 //////////////////////////
 // Types and interfaces //
@@ -297,24 +297,24 @@ export const regExpParserFromAST = memoize(
   (ast: RegExpType): Parser<string> => concat(andN(ast.map(evaluateRegExpToken)))
 )
 
-// export const scan = (regExpAsString: string, input: string): string[] => {
-//   let rest = input
-//   const matches = []
+export const scan = (regExpAsString: string, input: string): string[] => {
+  let rest = input
+  const matches = []
 
-//   while (true) {
-//     const match = buildAndMatch2(regExpAsString, rest)
+  while (true) {
+    const match = buildAndMatch(regExpAsString, rest, { showArrows: false })
 
-//     if (typeof match !== 'string') {
-//       matches.push(match.match)
+    if (typeof match !== 'string') {
+      matches.push(match.match)
 
-//       // rest = remaining.length < rest.length ? remaining : remaining.slice(1)
-//     }
+      rest = rest.slice(match.end + 1)
+    } else {
+      break // Match unsuccessful! Stop scan.
+    }
+  }
 
-//     // if (isError(result) || remaining === EMPTY_STRING) break
-//   }
-
-//   return matches.flat()
-// }
+  return matches.flat()
+}
 
 declare const Deno: {
   inspect: (...args: unknown[]) => void
@@ -436,7 +436,7 @@ const cloneNode = (
 
   let clone: NodeType
 
-  // Create cloned nodes purposely without `next` and `nextAlt` (in the case of a CNode) props, so it can be added right away
+  // Clone the node, delaying the creation of its `next` and `nextAlt` (in the case of a CNode) props, so the new node can be added right away
   // into the clones map.
   switch (node.type) {
     case 'NNode':
@@ -458,11 +458,11 @@ const cloneNode = (
   clones.set(node, clone)
 
   // At last, set the `next` prop.
-  clone.next = node.next !== undefined ? cloneNode(node.next, newNext, clones) : newNext
+  clone.next = node.next === undefined ? newNext : cloneNode(node.next, newNext, clones)
 
   // Set the `nextAlt` prop (for CNodes).
   if (node.type === 'CNode' && clone.type === 'CNode')
-    clone.nextAlt = node.nextAlt !== undefined ? cloneNode(node.nextAlt, newNext, clones) : newNext
+    clone.nextAlt = node.nextAlt === undefined ? newNext : cloneNode(node.nextAlt, newNext, clones)
 
   debug(() => `\n---> Clone of node #${nodeAsString(node)}: ${inspect(clone)}`)
 
@@ -606,7 +606,7 @@ export const createNfaNodeFromRegExpToken = (
       // ▬▶[a] or ▬▶[†]: initial states
       // [b]▬▶ or ◀▬[b]: end states
       // - [a], [b]: NNodes or CNodes
-      // - [†]: CNode
+      // - [†]: CNode only
       // - m, n: natural numbers
       //
       // Possible cases:
@@ -690,28 +690,10 @@ export const createNfaNodeFromRegExpToken = (
         })
       } // limits.max === Infinity
       else {
-        debug(
-          () =>
-            `[limits.max === Infinity] Creating CNode with next undefined and nextAlt ${inspect(
-              nextNode
-            )}`
-        )
         rightCNode = createCNode(undefined, nextNode)
 
-        debug(
-          () =>
-            `[limits.max === Infinity] Cloning node ${inspect(repeatingNode)} with next ${inspect(
-              rightCNode
-            )}`
-        )
         const rightNNode = cloneNode(repeatingNode, rightCNode)
 
-        debug(
-          () =>
-            `[limits.max === Infinity] Setting next of node ${inspect(rightCNode)} to ${inspect(
-              rightNNode
-            )}`
-        )
         rightCNode.next = rightNNode
       }
 
@@ -762,7 +744,12 @@ export const matchNfa = (
   index = 0
 ): { matched: boolean; input: string; index: number } => {
   if (nfa === undefined) return { matched: true, input, index }
-  if (nfa === null) return { matched: false, input, index } // throw new Error('Sorry, no match!')
+  if (nfa === null) return { matched: false, input, index } // throw new Error(NO_MATCH_MESSAGE)
+
+  // FIXME: make this work: re.buildAndMatch('(a?)+', 'a')
+  //
+  // if (input.length === 0 && !(nfa.type === 'NNode' && nfa.character !== DOLLAR_SIGN))
+  //   return { matched: false, input, index }
 
   switch (nfa.type) {
     case 'NNode': {
@@ -778,20 +765,21 @@ export const matchNfa = (
 
       if (nfa.escaped) {
         if (currentChar === nfa.character)
+          // Matches character literally.
           return debug(() => 'Passed!'), matchNfa(nfa.next, rest, index + 1)
       } else {
         switch (nfa.character) {
-          case CARET:
+          case CARET: // A '^' matches the start of the input string.
             if (index === 0) return debug(() => 'Passed!'), matchNfa(nfa.next, input, index)
             break
-          case DOLLAR_SIGN:
+          case DOLLAR_SIGN: // A '$' matches the end of the input string.
             if (input.length === 0) return debug(() => 'Passed!'), { matched: true, input, index }
             break
-          case PERIOD: // Matches anything but new line (\n).
+          case PERIOD: // A '.' matches anything but the new line (\n).
             if (currentChar !== NEW_LINE && input.length > 0)
               return debug(() => 'Passed!'), matchNfa(nfa.next, rest, index + 1)
             break
-          default:
+          default: // Matches character literally.
             if (currentChar === nfa.character)
               return debug(() => 'Passed!'), matchNfa(nfa.next, rest, index + 1)
         }
@@ -836,8 +824,8 @@ export const matchNfa = (
 export const buildAndMatch = (
   regExpAsString: string,
   input: string,
-  { exactMatch = false, printAstAndNfaInDebugMode = true } = {}
-): { match: string; index: number } | typeof NO_MATCH_MESSAGE => {
+  { exactMatch = false, printAstAndNfaInDebugMode = true, showArrows = true } = {}
+): { match: string; start: number; end: number } | typeof NO_MATCH_MESSAGE => {
   const nfa = buildRegExpASTAndCreateNfaNodeFromRegExp(regExpAsString, {
     printAstAndNfaInDebugMode,
   })
@@ -853,15 +841,16 @@ export const buildAndMatch = (
     debug(() => `match: ${inspect(match)}`)
 
     if (match.matched) {
+      const matchedString = input.slice(index, match.index)
+
       return {
-        match: [
-          input.slice(0, index),
-          '->',
-          input.slice(index, match.index),
-          '<-',
-          input.slice(match.index),
-        ].join(EMPTY_STRING),
-        index,
+        match: showArrows
+          ? [input.slice(0, index), '->', matchedString, '<-', input.slice(match.index)].join(
+              EMPTY_STRING
+            )
+          : matchedString,
+        start: index,
+        end: match.index - 1,
       }
     }
   }
@@ -881,7 +870,7 @@ const assertMatches = (
 ) => {
   const match = buildAndMatch(regExpAsString, input, { exactMatch })
 
-  assertEquals(typeof match === typeof NO_MATCH_MESSAGE ? match : match.match, matchedResult)
+  assertEquals(typeof match === 'string' ? match : match.match, matchedResult)
 }
 
 const previousDebugMode = debugMode
@@ -904,14 +893,17 @@ assertMatches('(x+x+)+y', 'xxxxxxxxxx', NO_MATCH_MESSAGE)
 assertMatches('(a+)*ab', 'aaaaaaaaaaaab', '->aaaaaaaaaaaab<-')
 assertMatches('.*.*=.*', 'x=x', '->x=x<-')
 
-// assertEquals(
-//   scan(
-//     '/w+(/./w+)*@/w+(/./w+)+',
-//     '| john.doe@gmail.com | john@gmail.com.us | john.doe@ | @gmail.com | john@gmail | jo.hn.do.e@g.mail.co.m |'
-//   ),
-//   ['john.doe@gmail.com', 'john@gmail.com.us', 'jo.hn.do.e@g.mail.co.m']
-// )
+assertEquals(
+  scan(
+    '/w+(/./w+)*@/w+(/./w+)+',
+    '| john.doe@gmail.com | john@gmail.com.us | john.doe@ | @gmail.com | john@gmail | jo.hn.do.e@g.mail.co.m |'
+  ),
+  ['john.doe@gmail.com', 'john@gmail.com.us', 'jo.hn.do.e@g.mail.co.m']
+)
 
 log('Done!')
 
 debugMode = previousDebugMode
+
+// > re.buildAndMatch('(/.+/w+ /d+/.+)+', '...xxx 123.........yyy 4.........z 5678...')
+// { match: "->...xxx 123.........<-yyy 4.........z 5678...", index: 0 }
