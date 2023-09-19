@@ -18,24 +18,18 @@ import {
   or,
   isError,
   or3,
-  andN,
-  charRange,
   orN,
-  concat,
   PERIOD,
   EMPTY_STRING,
   SingleChar,
   many,
   succeededBy,
   allButCharSet,
-  none1,
   or4,
   charSequence,
   precededBy,
-  error,
   memoize,
   allButChar,
-  manyN,
 } from '../reactive-spreadsheet/src/parser_combinators.ts'
 
 const NO_MATCH_MESSAGE = '(sorry, no match)'
@@ -189,64 +183,6 @@ const factor: Parser<RegExpTokenType> = memoize(
 const DOLLAR_SIGN = '$'
 const NEW_LINE = '\n'
 
-const endOfString: Parser<string> = memoize(input =>
-  input.length === 0 ? ['', ''] : [error('Input not empty'), input]
-)
-
-export const evaluateRegExpToken =
-  (token: RegExpTokenType): Parser<string> =>
-  input => {
-    switch (token.type) {
-      case 'singleChar': {
-        let parser: Parser<string>
-
-        switch (token.character) {
-          case PERIOD:
-            parser = allButChar(NEW_LINE)
-            break
-          case DOLLAR_SIGN:
-            parser = endOfString
-            break
-          default:
-            parser = char(token.character)
-        }
-
-        const [result, rest] = parser(input)
-
-        debug(() => `Trying to match '${token.character}' against '${input}'`)
-
-        if (!isError(result)) debug(() => `Matched singleChar: '${result}'`)
-
-        return [result, rest]
-      }
-
-      case 'parenthesized':
-        return concat(andN(token.expr.map(evaluateRegExpToken)))(input)
-
-      case 'characterClass': {
-        const optionsParser = token.options.map(option =>
-          typeof option === 'string' ? char(option) : charRange(option.from, option.to)
-        )
-
-        return (!token.negated ? orN(optionsParser) : none1(optionsParser))(input)
-      }
-
-      case 'repetition': {
-        return concat(manyN(evaluateRegExpToken(token.expr), token.limits))(input)
-      }
-
-      case 'alternation':
-        return concat(
-          or(andN(token.left.map(evaluateRegExpToken)), andN(token.right.map(evaluateRegExpToken)))
-        )(input)
-
-      default: {
-        const _exhaustiveCheck: never = token
-        throw new Error('Invalid regular expression type')
-      }
-    }
-  }
-
 const CHARACTER_CLASS_ABBREVIATIONS: { [index: SingleChar]: string } = {
   d: '[0-9]', // d = Decimal digit
   h: '[0-9a-fA-F]', // h = Hexadecimal digit
@@ -292,10 +228,6 @@ export const buildRegExpAST = (regExpAsString: string): RegExpType => {
 
   return result
 }
-
-export const regExpParserFromAST = memoize(
-  (ast: RegExpType): Parser<string> => concat(andN(ast.map(evaluateRegExpToken)))
-)
 
 export const scan = (regExpAsString: string, input: string): string[] => {
   let rest = input
