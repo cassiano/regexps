@@ -306,8 +306,8 @@ type CreateCNodeOptionsType = {
   previousProp?: previousNavigationPropType
 }
 
-let nNodeCount = 0
-let cNodeCount = 0
+let nNodeCount: number
+let cNodeCount: number
 
 export const createNNode = (
   character: SingleChar,
@@ -847,6 +847,10 @@ assertEquals(
 )
 
 log('Done!')
+
+// Reset the node counters.
+nNodeCount = 0
+cNodeCount = 0
 
 debugMode = previousDebugMode
 
