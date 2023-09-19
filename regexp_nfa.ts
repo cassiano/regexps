@@ -653,12 +653,15 @@ export const buildRegExpASTAndCreateNfaNodeFromRegExp = (
 
 const WORD_BOUNDARY = '\b'
 
-const isWordChar = (char: SingleChar | undefined) =>
-  char === undefined
-    ? false
-    : (char.toUpperCase() >= 'A' && char.toUpperCase() <= 'Z') ||
-      (char! >= '0' && char! <= '9') ||
-      char === '_'
+const isWordChar = (char: SingleChar) => {
+  const upcasedChar = char.toUpperCase()
+
+  return (
+    (upcasedChar >= 'A' && upcasedChar <= 'Z') ||
+    (upcasedChar >= '0' && upcasedChar <= '9') ||
+    upcasedChar === '_'
+  )
+}
 
 let matchNfaCount: number
 
@@ -666,21 +669,24 @@ export const matchNfa = (
   currentNode: NodeType | null | undefined,
   input: string,
   index = 0,
-  previousChar?: SingleChar
+  previousChar: SingleChar
 ): { matched: boolean; input: string; index: number } => {
   matchNfaCount++
 
   if (currentNode === undefined) return { matched: true, input, index }
   if (currentNode === null) throw new Error(NO_MATCH_MESSAGE) // return { matched: false, input, index }
 
+  const isEmptyInput = input.length === 0
+  const isStartOfInput = index === 0
+
   switch (currentNode.type) {
     case 'NNode': {
-      const currentChar = input[0]
+      const currentChar = isEmptyInput ? '' : input[0]
       const rest = input.slice(1)
 
       debug(
         () =>
-          `[input: '${input}', index: ${index}] Trying to match character '${
+          `[input: '${input}', index: ${index}, previousChar: '${previousChar}', currentChar: '${currentChar}'] Trying to match character '${
             currentChar ?? ''
           }' against node ${nodeAsString(currentNode)}`
       )
@@ -688,39 +694,40 @@ export const matchNfa = (
       if (currentNode.escaped) {
         if (currentChar === currentNode.character)
           // Matches character literally.
-          return debug(() => 'Passed!'), matchNfa(currentNode.next, rest, index + 1, currentChar)
+          return debug(() => 'Matched!'), matchNfa(currentNode.next, rest, index + 1, currentChar)
       } else {
         switch (currentNode.character) {
           case CARET: // A '^' matches the start of the input string.
-            if (index === 0) return debug(() => 'Passed!'), matchNfa(currentNode.next, input, index)
+            if (isStartOfInput)
+              return debug(() => 'Matched!'), matchNfa(currentNode.next, input, index, previousChar)
             break
 
           case DOLLAR_SIGN: // A '$' matches the end of the input string.
-            if (input.length === 0) return debug(() => 'Passed!'), { matched: true, input, index }
+            if (isEmptyInput) return debug(() => 'Matched!'), { matched: true, input, index }
             break
 
           case PERIOD: // A '.' matches anything but the new line (\n).
             if (currentChar !== NEW_LINE && input.length > 0)
               return (
-                debug(() => 'Passed!'), matchNfa(currentNode.next, rest, index + 1, currentChar)
+                debug(() => 'Matched!'), matchNfa(currentNode.next, rest, index + 1, currentChar)
               )
             break
 
           case WORD_BOUNDARY: // A '\b' matches the (empty) string immediately before or after a "word".
             if (
-              (index === 0 && isWordChar(currentChar)) ||
-              (index > 0 && !isWordChar(previousChar) && isWordChar(currentChar)) ||
-              (input.length === 0 && isWordChar(previousChar)) ||
+              (isStartOfInput && isWordChar(currentChar)) ||
+              (!isStartOfInput && !isWordChar(previousChar) && isWordChar(currentChar)) ||
+              (isEmptyInput && isWordChar(previousChar)) ||
               (!isWordChar(currentChar) && isWordChar(previousChar))
             )
-              return debug(() => 'Passed!'), matchNfa(currentNode.next, input, index, previousChar)
+              return debug(() => 'Matched!'), matchNfa(currentNode.next, input, index, previousChar)
 
             break
 
           default: // Matches character literally.
             if (currentChar === currentNode.character)
               return (
-                debug(() => 'Passed!'), matchNfa(currentNode.next, rest, index + 1, currentChar)
+                debug(() => 'Matched!'), matchNfa(currentNode.next, rest, index + 1, currentChar)
               )
         }
       }
@@ -731,7 +738,7 @@ export const matchNfa = (
     case 'CNode':
       debug(
         () =>
-          `[input: '${input}', index: ${index}] Trying to match against node ${nodeAsString(
+          `[input: '${input}', index: ${index}, previousChar: '${previousChar}'] Trying to match against node ${nodeAsString(
             currentNode
           )}`
       )
@@ -787,7 +794,7 @@ export const buildAndMatch = (
 
     const slicedInput = input.slice(index)
 
-    const match = matchNfa(nfa, slicedInput, index)
+    const match = matchNfa(nfa, slicedInput, index, index > 0 ? input.slice(index - 1, index) : '')
 
     debug(() => `match: ${inspect(match)}, accumulated matchNfaCount: ${matchNfaCount}`)
 
