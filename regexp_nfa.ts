@@ -628,16 +628,18 @@ export const createNfaNodeFromRegExpToken = (
 
 export const buildRegExpASTAndCreateNfaNodeFromRegExp = (
   regExpAsString: string,
-  { printAstAndNfaInDebugMode = true } = {}
+  { printNodes = true } = {}
 ): NodeType => {
   const previousNNodeCount = nNodeCount
   const previousCNodeCount = cNodeCount
 
   const ast = buildRegExpAST(regExpAsString)
-  debug(() => printAstAndNfaInDebugMode && `\nAST: \n\n${inspect(ast)}`)
+
+  debug(() => printNodes && `\nAST: \n\n${inspect(ast)}`)
 
   const nfa = createNfaNodeFromRegExp(ast)
-  debug(() => printAstAndNfaInDebugMode && `\nNFA: \n\n${inspect(nfa)}`)
+
+  debug(() => printNodes && `\nNFA: \n\n${inspect(nfa)}`)
 
   debug(
     () =>
@@ -771,10 +773,10 @@ export const matchNfa = (
 export const buildAndMatch = (
   regExpAsString: string,
   input: string,
-  { exactMatch = false, printAstAndNfaInDebugMode = true, arrows = false } = {}
+  { exactMatch = false, printNodes = true, arrows = false } = {}
 ): { match: string; start: number; end: number } | typeof NO_MATCH_MESSAGE => {
   const nfa = buildRegExpASTAndCreateNfaNodeFromRegExp(regExpAsString, {
-    printAstAndNfaInDebugMode,
+    printNodes,
   })
 
   matchNfaCount = 0
