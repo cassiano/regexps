@@ -214,15 +214,17 @@ const replaceCharacterClassAbbreviations = (regExpAsString: string): string => {
   return regExpAsString
 }
 
-const replaceEscapedChars = (regExpAsString: string): string =>
-  regExpAsString.replaceAll(/[/\\](.)/g, '[$1]')
+// const replaceEscapedChars = (regExpAsString: string): string =>
+//   regExpAsString.replaceAll(/[/\\](.)/g, '[$1]')
 
 export const buildRegExpAST = (regExpAsString: string): RegExpType => {
   const [result, rest] = regExp(
-    replaceEscapedChars(replaceCharacterClassAbbreviations(regExpAsString))
+    // replaceEscapedChars(replaceCharacterClassAbbreviations(regExpAsString))
+    replaceCharacterClassAbbreviations(regExpAsString)
   )
 
-  debug(() => `RegExp: ${replaceEscapedChars(replaceCharacterClassAbbreviations(regExpAsString))}`)
+  // debug(() => `RegExp: ${replaceEscapedChars(replaceCharacterClassAbbreviations(regExpAsString))}`)
+  debug(() => `RegExp: ${replaceCharacterClassAbbreviations(regExpAsString)}`)
 
   if (isError(result) || rest !== EMPTY_STRING) throw new Error('Invalid regular expression')
 
@@ -260,13 +262,6 @@ export const inspect = (value: any) =>
 export const print = (value: object) => log(inspect(value))
 
 export const showRegExp = (regExpAsString: string) => print(buildRegExpAST(regExpAsString))
-
-export const groupBy = <T>(collection: T[], fn: (prop: T) => string | number) =>
-  collection.reduce((acc: { [key: string | number]: T[] }, obj: T) => {
-    acc[fn(obj)] ??= []
-    acc[fn(obj)].push(obj)
-    return acc
-  }, {})
 
 export const times = <T>(n: number, fn: (index: number) => T): T[] => [...Array(n).keys()].map(fn)
 
@@ -351,7 +346,7 @@ const mapCharacterClassOptions = memoize((options: CharacterClassOptionsType) =>
 )
 
 const nodeAsString = (node: NodeType | null | undefined) =>
-  node === null || node === undefined ? node : `type ${node.type} and #${node.id}`
+  node === null || node === undefined ? node : `${node.type} #${node.id}`
 
 const cloneNode = (
   node: NodeType | null | undefined,
@@ -673,10 +668,20 @@ export const buildRegExpASTAndCreateNfaNodeFromRegExp = (
   return nfa
 }
 
+const WORD_BOUNDARY = '\b'
+
+const isWordChar = (char: SingleChar | undefined) =>
+  char === undefined
+    ? false
+    : (char.toUpperCase() >= 'A' && char.toUpperCase() <= 'Z') ||
+      (char! >= '0' && char! <= '9') ||
+      char === '_'
+
 export const matchNfa = (
   currentNode: NodeType | null | undefined,
   input: string,
-  index = 0
+  index = 0,
+  previousChar?: SingleChar
 ): { matched: boolean; input: string; index: number } => {
   if (currentNode === undefined) return { matched: true, input, index }
   if (currentNode === null) throw new Error(NO_MATCH_MESSAGE) // return { matched: false, input, index }
@@ -696,22 +701,40 @@ export const matchNfa = (
       if (currentNode.escaped) {
         if (currentChar === currentNode.character)
           // Matches character literally.
-          return debug(() => 'Passed!'), matchNfa(currentNode.next, rest, index + 1)
+          return debug(() => 'Passed!'), matchNfa(currentNode.next, rest, index + 1, currentChar)
       } else {
         switch (currentNode.character) {
           case CARET: // A '^' matches the start of the input string.
             if (index === 0) return debug(() => 'Passed!'), matchNfa(currentNode.next, input, index)
             break
+
           case DOLLAR_SIGN: // A '$' matches the end of the input string.
             if (input.length === 0) return debug(() => 'Passed!'), { matched: true, input, index }
             break
+
           case PERIOD: // A '.' matches anything but the new line (\n).
             if (currentChar !== NEW_LINE && input.length > 0)
-              return debug(() => 'Passed!'), matchNfa(currentNode.next, rest, index + 1)
+              return (
+                debug(() => 'Passed!'), matchNfa(currentNode.next, rest, index + 1, currentChar)
+              )
             break
+
+          case WORD_BOUNDARY:
+            if (
+              (index === 0 && isWordChar(currentChar)) ||
+              (index > 0 && !isWordChar(previousChar) && isWordChar(currentChar)) ||
+              (input.length === 0 && isWordChar(previousChar)) ||
+              (!isWordChar(currentChar) && isWordChar(previousChar))
+            )
+              return debug(() => 'Passed!'), matchNfa(currentNode.next, input, index, previousChar)
+
+            break
+
           default: // Matches character literally.
             if (currentChar === currentNode.character)
-              return debug(() => 'Passed!'), matchNfa(currentNode.next, rest, index + 1)
+              return (
+                debug(() => 'Passed!'), matchNfa(currentNode.next, rest, index + 1, currentChar)
+              )
         }
       }
 
@@ -726,7 +749,7 @@ export const matchNfa = (
           )}`
       )
 
-      let match = matchNfa(currentNode.next, input, index)
+      let match = matchNfa(currentNode.next, input, index, previousChar)
 
       if (match.matched)
         return (
@@ -737,7 +760,7 @@ export const matchNfa = (
           match
         )
       else {
-        match = matchNfa(currentNode.nextAlt, input, index)
+        match = matchNfa(currentNode.nextAlt, input, index, previousChar)
 
         if (match.matched)
           return (
@@ -827,10 +850,6 @@ assertMatches('/d{2}:/d{2}/s*([ap]m)', '12:50 am', '->12:50 am<-')
 assertMatches('a*', '...aa', '-><-...aa')
 assertMatches('a*', 'aa', '->aa<-')
 assertMatches('a+', '...aa', '...->aa<-')
-assertMatches('^a+', '...aa', NO_MATCH_MESSAGE)
-assertMatches('^a+', 'aa', '->aa<-')
-assertMatches('^a+$', 'aa...', NO_MATCH_MESSAGE)
-assertMatches('^a+$', 'aa', '->aa<-')
 assertMatches('a+$', '..aa', '..->aa<-')
 assertMatches('(x+x+)+y', 'xxxxxxxxxxy', '->xxxxxxxxxxy<-')
 assertMatches('(x+x+)+y', 'xxxxxxxxxx', NO_MATCH_MESSAGE)
@@ -838,9 +857,17 @@ assertMatches('(a+)*ab', 'aaaaaaaaaaaab', '->aaaaaaaaaaaab<-')
 assertMatches('.*.*=.*', 'x=x', '->x=x<-')
 assertMatches('a*'.repeat(100), 'a'.repeat(1000), '->' + 'a'.repeat(1000) + '<-')
 
+// Anchors.
+assertMatches('^a+', '...aa', NO_MATCH_MESSAGE)
+assertMatches('^a+', 'aa', '->aa<-')
+assertMatches('^a+$', 'aa...', NO_MATCH_MESSAGE)
+assertMatches('^a+$', 'aa', '->aa<-')
+assertMatches('\b/w{4}', '           some_WORD   ', '           ->some<-_WORD   ')
+assertMatches('/w{4}\b', '           some_WORD   ', '           some_->WORD<-   ')
+
 assertEquals(
   scan(
-    '/w+(/./w+)*@/w+(/./w+)+',
+    '/w+([.]/w+)*@/w+([.]/w+)+',
     '| john.doe@gmail.com | john@gmail.com.us | john.doe@ | @gmail.com | john@gmail | jo.hn.do.e@g.mail.co.m |'
   ),
   ['john.doe@gmail.com', 'john@gmail.com.us', 'jo.hn.do.e@g.mail.co.m']
