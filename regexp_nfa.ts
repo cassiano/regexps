@@ -18,7 +18,6 @@ import {
   or,
   isError,
   or3,
-  ParserResult,
   andN,
   charRange,
   orN,
@@ -39,11 +38,13 @@ import {
   manyN,
 } from '../reactive-spreadsheet/src/parser_combinators.ts'
 
+const NO_MATCH_MESSAGE = '(sorry, no match)'
+
 //////////////////
 // Global state //
 //////////////////
 
-let debugMode = true
+let debugMode = false
 
 //////////////////////////
 // Types and interfaces //
@@ -296,53 +297,24 @@ export const regExpParserFromAST = memoize(
   (ast: RegExpType): Parser<string> => concat(andN(ast.map(evaluateRegExpToken)))
 )
 
-export const buildAndMatch = (
-  regExpAsString: string,
-  input: string,
-  exactMatch = false
-): ParserResult<string> => {
-  let result: string | Error
+// export const scan = (regExpAsString: string, input: string): string[] => {
+//   let rest = input
+//   const matches = []
 
-  if (regExpAsString.startsWith(CARET)) {
-    regExpAsString = regExpAsString.slice(1)
-    exactMatch = true
-  }
+//   while (true) {
+//     const match = buildAndMatch2(regExpAsString, rest)
 
-  const ast = buildRegExpAST(regExpAsString)
-  const parser = regExpParserFromAST(ast)
+//     if (typeof match !== 'string') {
+//       matches.push(match.match)
 
-  // Try to match the regular expression from left to right.
-  for (let i = 0; i < (exactMatch ? 1 : input.length); i++) {
-    let rest: string
+//       // rest = remaining.length < rest.length ? remaining : remaining.slice(1)
+//     }
 
-    const slicedInput = input.slice(i)
+//     // if (isError(result) || remaining === EMPTY_STRING) break
+//   }
 
-    ;[result, rest] = parser(slicedInput)
-
-    if (!isError(result)) return [result, rest]
-  }
-
-  return [result!, input]
-}
-
-export const scan = (regExpAsString: string, input: string): string[] => {
-  let rest = input
-  const matches = []
-
-  while (true) {
-    const [result, remaining] = buildAndMatch(regExpAsString, rest)
-
-    if (!isError(result)) {
-      matches.push(result)
-
-      rest = remaining.length < rest.length ? remaining : remaining.slice(1)
-    }
-
-    if (isError(result) || remaining === EMPTY_STRING) break
-  }
-
-  return matches.flat()
-}
+//   return matches.flat()
+// }
 
 declare const Deno: {
   inspect: (...args: unknown[]) => void
@@ -375,51 +347,6 @@ export const debug = (messageOrFalse: () => string | false): void => {
     log(message)
   }
 }
-
-///////////
-// Tests //
-///////////
-
-const assertMatches = (
-  regExpAsString: string,
-  input: string,
-  matchedResult: ParserResult<string>,
-  exactMatch = false
-) => assertEquals(buildAndMatch(regExpAsString, input, exactMatch), matchedResult)
-
-const previousDebugMode = debugMode
-debugMode = false
-
-log('Running tests...')
-
-assertMatches('an+', 'banana', ['an', 'ana'])
-assertMatches('(an)+', 'banana', ['anan', 'a'])
-assertMatches('iss', 'mississipi', ['iss', 'issipi'])
-assertMatches('(iss)+', 'mississipi', ['ississ', 'ipi'])
-assertMatches('is+', 'mississipi', ['iss', 'issipi'])
-assertMatches('(is+)+', 'mississipi', ['ississ', 'ipi'])
-assertMatches('/d{2}/D/d{2}/s*([ap]m)', '"12:50 am', ['12:50 am', ''])
-assertMatches('a*', '...aa', ['', '...aa'])
-assertMatches('a*', 'aa', ['aa', ''])
-assertMatches('a+', '...aa', ['aa', ''])
-// assertMatches('(x+x+)+y', 'xxxxxxxxxxy', ['xxxxxxxxxxy', ''], true)
-
-// assertIsError(buildAndMatch('(x+x+)+y', 'xxxxxxxxxx', true).match[0]) // 558 steps
-
-// assertMatches('(a+)*ab', 'aaaaaaaaaaaab', ['aaaaaaaaaaaab', ''], true) // 2050 steps
-// assertMatches('.*.*=.*', 'x=x', ['x=x', ''], true) // 6 steps
-
-assertEquals(
-  scan(
-    '/w+(/./w+)*@/w+(/./w+)+',
-    '| john.doe@gmail.com | john@gmail.com.us | john.doe@ | @gmail.com | john@gmail | jo.hn.do.e@g.mail.co.m |'
-  ),
-  ['john.doe@gmail.com', 'john@gmail.com.us', 'jo.hn.do.e@g.mail.co.m']
-)
-
-log('Done!')
-
-debugMode = previousDebugMode
 
 type CNodeType = { type: 'CNode'; id: number; next?: NodeType | null; nextAlt?: NodeType | null }
 type NNodeType = {
@@ -488,72 +415,38 @@ const mapCharacterClassOptions = memoize((options: CharacterClassOptionsType) =>
   options.flatMap(option => (typeof option === 'string' ? option : mapCharacterClassRange(option)))
 )
 
-// FIXME: stack overflow when re.buildAndMatch2('/w+(/./w+)*@/w+(/./w+)+', 'john.doe@gmail.com', { exactMatch: true, printAstAndNfaInDebugMode: false }).
-const getInnerNext = (
-  node: NodeType,
-  breadcrumbs: (NodeType | null | undefined)[] = []
-): NodeType | null | undefined => (
-  breadcrumbs.push(node),
-  node.next !== undefined && node.next !== null && breadcrumbs.indexOf(node.next) === -1
-    ? getInnerNext(node.next, breadcrumbs)
-    : node.next
-)
-
-const setInnerNext = (
-  node: NodeType,
-  newNext: NodeType | null | undefined,
-  breadcrumbs: (NodeType | null | undefined)[] = []
-): void => {
-  breadcrumbs.push(node)
-
-  if (node.next !== undefined && node.next !== null && breadcrumbs.indexOf(node.next) === -1) {
-    setInnerNext(node.next, newNext, breadcrumbs)
-  } else {
-    node.next = newNext
-  }
-}
+const nodeAsString = (node: NodeType | null | undefined) =>
+  node === null || node === undefined ? node : `type ${node.type} and #${node.id}`
 
 const cloneNode = (
   node: NodeType | null | undefined,
-  newNext: NodeType | null | undefined
+  newNext: NodeType | null | undefined,
+  clones: Map<NodeType, NodeType> = new Map()
 ): NodeType | null | undefined => {
-  debug(() => `\nCloning node ${inspect(node)} with new next ${inspect(newNext)}`)
-
   if (node === null || node === undefined) return node
 
-  let next: NodeType | null | undefined
-  let cycleDetected = false
+  debug(() => `\nCloning node ${nodeAsString(node)} with new next ${nodeAsString(newNext)}`)
 
-  if (node.next !== undefined) {
-    if (node.next !== null && getInnerNext(node) === node) {
-      debug(() => `\n>>>>> Cycle detected <<<<<`)
+  // Node already cloned?
+  if (clones.has(node)) {
+    debug(() => `>>>>> Circular reference detected for node ${inspect(node)}! Returning clone .`)
 
-      cycleDetected = true
-      setInnerNext(node, undefined)
-      next = cloneNode(node.next, undefined)
-      node.next.next = node
-    } else {
-      next = cloneNode(node.next, newNext)
-    }
-  } else {
-    next = newNext
+    return clones.get(node)
   }
 
-  let clone: NodeType | null | undefined
+  let clone: NodeType
 
+  // Create cloned nodes purposely without `next` and `nextAlt` (in the case of a CNode) props, so it can be added right away
+  // into the clones map.
   switch (node.type) {
     case 'NNode':
       clone = createNNode(node.character, {
         escaped: node.escaped,
-        next,
       })
       break
 
     case 'CNode':
-      clone = createCNode(
-        next,
-        node.nextAlt !== undefined ? cloneNode(node.nextAlt, newNext) : newNext
-      )
+      clone = createCNode(undefined, undefined)
       break
 
     default: {
@@ -562,9 +455,16 @@ const cloneNode = (
     }
   }
 
-  if (cycleDetected) setInnerNext(clone, clone)
+  clones.set(node, clone)
 
-  debug(() => `\n---> Clone of node #${node.id}: ${inspect(clone)}`)
+  // At last, set the `next` prop.
+  clone.next = node.next !== undefined ? cloneNode(node.next, newNext, clones) : newNext
+
+  // Set the `nextAlt` prop (for CNodes).
+  if (node.type === 'CNode' && clone.type === 'CNode')
+    clone.nextAlt = node.nextAlt !== undefined ? cloneNode(node.nextAlt, newNext, clones) : newNext
+
+  debug(() => `\n---> Clone of node #${nodeAsString(node)}: ${inspect(clone)}`)
 
   return clone
 }
@@ -933,11 +833,11 @@ export const matchNfa = (
   return { matched: false, input, index }
 }
 
-export const buildAndMatch2 = (
+export const buildAndMatch = (
   regExpAsString: string,
   input: string,
   { exactMatch = false, printAstAndNfaInDebugMode = true } = {}
-): { match: string; index: number } | string => {
+): { match: string; index: number } | typeof NO_MATCH_MESSAGE => {
   const nfa = buildRegExpASTAndCreateNfaNodeFromRegExp(regExpAsString, {
     printAstAndNfaInDebugMode,
   })
@@ -966,55 +866,52 @@ export const buildAndMatch2 = (
     }
   }
 
-  return '(sorry, no match)'
+  return NO_MATCH_MESSAGE
 }
 
-// import * as re from './regexp_nfa.ts'; import * as pc from '../reactive-spreadsheet/src/parser_combinators.ts'
-// const regExpAsString = 'a*b'; const ast = re.buildRegExpAST(regExpAsString); const nfa = re.createNfaNodeFromRegExp(ast); re.print(nfa)
+///////////
+// Tests //
+///////////
 
-// a+b:
-// const node1 = re.createNNode('a')
-// const node3 = re.createNNode('b')
-// const node2 = re.createCNode(node1, node3, { previous: node1 })
-// re.print(node1)
+const assertMatches = (
+  regExpAsString: string,
+  input: string,
+  matchedResult: string,
+  exactMatch = false
+) => {
+  const match = buildAndMatch(regExpAsString, input, { exactMatch })
 
-// a*b:
-// const node2 = re.createNNode('a')
-// const node3 = re.createNNode('b')
-// const node1 = re.createCNode(node2, node3)
-// node2.next = node1
-// re.print(node1)
+  assertEquals(typeof match === typeof NO_MATCH_MESSAGE ? match : match.match, matchedResult)
+}
 
-// a?b:
-// const node2 = re.createNNode('a')
-// const node3 = re.createNNode('b', { previous: node2 })
-// const node1 = re.createCNode(node2, node3)
-// re.print(node1)
+const previousDebugMode = debugMode
+debugMode = false
 
-// a{2}b:
-// const node1 = re.createNNode('a')
-// const node2 = re.createNNode('a', { previous: node1 })
-// const node3 = re.createNNode('b', { previous: node2 })
-// re.print(node1)
+log('Running tests...')
 
-// a{2,}b:
-// const node1 = re.createNNode('a')
-// const node2 = re.createNNode('a', { previous: node1 })
-// const node3 = re.createNNode('b')
-// const node4 = re.createCNode(node2, node3, { previous: node2 })
-// re.print(node1)
+assertMatches('an+', 'banana', 'b->an<-ana')
+assertMatches('(an)+', 'banana', 'b->anan<-a')
+assertMatches('iss', 'mississipi', 'm->iss<-issipi')
+assertMatches('(iss)+', 'mississipi', 'm->ississ<-ipi')
+assertMatches('is+', 'mississipi', 'm->iss<-issipi')
+assertMatches('(is+)+', 'mississipi', 'm->ississ<-ipi')
+assertMatches('/d{2}/D/d{2}/s*([ap]m)', '12:50 am', '->12:50 am<-')
+assertMatches('a*', '...aa', '-><-...aa')
+assertMatches('a*', 'aa', '->aa<-')
+assertMatches('a+', '...aa', '...->aa<-')
+assertMatches('(x+x+)+y', 'xxxxxxxxxxy', '->xxxxxxxxxxy<-')
+assertMatches('(x+x+)+y', 'xxxxxxxxxx', NO_MATCH_MESSAGE)
+assertMatches('(a+)*ab', 'aaaaaaaaaaaab', '->aaaaaaaaaaaab<-')
+assertMatches('.*.*=.*', 'x=x', '->x=x<-')
 
-// a{1,2}b:
-// const node1 = re.createNNode('a')
-// const node2 = re.createNNode('a')
-// const node3 = re.createNNode('b', { previous: node2 })
-// const node4 = re.createCNode(node2, node3, { previous: node1 })
-// re.print(node1)
+// assertEquals(
+//   scan(
+//     '/w+(/./w+)*@/w+(/./w+)+',
+//     '| john.doe@gmail.com | john@gmail.com.us | john.doe@ | @gmail.com | john@gmail | jo.hn.do.e@g.mail.co.m |'
+//   ),
+//   ['john.doe@gmail.com', 'john@gmail.com.us', 'jo.hn.do.e@g.mail.co.m']
+// )
 
-// a{,2}b:
-// const node2 = re.createNNode('a')
-// const node3 = re.createNNode('b')
-// const node1 = re.createCNode(node2, node3)
-// const node5 = re.createNNode('a', { next: node3 })
-// const node4 = re.createCNode(node5, node3, { previous: node2 })
-// re.print(node1)
+log('Done!')
+
+debugMode = previousDebugMode
