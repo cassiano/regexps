@@ -231,25 +231,6 @@ export const buildRegExpAST = (regExpAsString: string): RegExpType => {
   return result
 }
 
-export const scan = (regExpAsString: string, input: string): string[] => {
-  let rest = input
-  const matches = []
-
-  while (true) {
-    const match = buildAndMatch(regExpAsString, rest)
-
-    if (typeof match !== 'string') {
-      matches.push(match.match)
-
-      rest = rest.slice(match.end + 1)
-    } else {
-      break // Match unsuccessful! Stop scan.
-    }
-  }
-
-  return matches.flat()
-}
-
 declare const Deno: {
   inspect: (...args: unknown[]) => void
   stdin: { read: (...args: unknown[]) => void }
@@ -677,12 +658,16 @@ const isWordChar = (char: SingleChar | undefined) =>
       (char! >= '0' && char! <= '9') ||
       char === '_'
 
+let matchNfaCount: number
+
 export const matchNfa = (
   currentNode: NodeType | null | undefined,
   input: string,
   index = 0,
   previousChar?: SingleChar
 ): { matched: boolean; input: string; index: number } => {
+  matchNfaCount++
+
   if (currentNode === undefined) return { matched: true, input, index }
   if (currentNode === null) throw new Error(NO_MATCH_MESSAGE) // return { matched: false, input, index }
 
@@ -792,6 +777,8 @@ export const buildAndMatch = (
     printAstAndNfaInDebugMode,
   })
 
+  matchNfaCount = 0
+
   // Try to match the regular expression from left to right.
   for (let index = 0; index < (exactMatch || input.length === 0 ? 1 : input.length); index++) {
     let rest: string
@@ -800,7 +787,7 @@ export const buildAndMatch = (
 
     const match = matchNfa(nfa, slicedInput, index)
 
-    debug(() => `match: ${inspect(match)}`)
+    debug(() => `match: ${inspect(match)}, accumulated matchNfaCount: ${matchNfaCount}`)
 
     if (match.matched) {
       const matchedString = input.slice(index, match.index)
@@ -818,6 +805,25 @@ export const buildAndMatch = (
   }
 
   return NO_MATCH_MESSAGE
+}
+
+export const scan = (regExpAsString: string, input: string): string[] => {
+  let rest = input
+  const matches = []
+
+  while (true) {
+    const match = buildAndMatch(regExpAsString, rest)
+
+    if (typeof match !== 'string') {
+      matches.push(match.match)
+
+      rest = rest.slice(match.end + 1)
+    } else {
+      break // Match unsuccessful! Stop scan.
+    }
+  }
+
+  return matches.flat()
 }
 
 ///////////
