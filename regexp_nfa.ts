@@ -336,14 +336,8 @@ const cloneNode = (
 ): NodeType | null | undefined => {
   if (node === null || node === undefined) return node
 
-  debug(() => `\nCloning node ${nodeAsString(node)} with new next ${nodeAsString(newNext)}`)
-
   // Node already cloned?
-  if (clones.has(node)) {
-    debug(() => `>>>>> Circular reference detected for node ${inspect(node)}! Returning clone .`)
-
-    return clones.get(node)
-  }
+  if (clones.has(node)) return clones.get(node)
 
   let clone: NodeType
 
@@ -374,8 +368,6 @@ const cloneNode = (
   // Set the `nextAlt` prop (for CNodes).
   if (node.type === 'CNode' && clone.type === 'CNode')
     clone.nextAlt = node.nextAlt === undefined ? newNext : cloneNode(node.nextAlt, newNext, clones)
-
-  debug(() => `\n---> Clone of node #${nodeAsString(node)}: ${inspect(clone)}`)
 
   return clone
 }
@@ -593,30 +585,22 @@ export const createNfaNodeFromRegExpToken = (
 
       if (limits.max !== Infinity) {
         times(limits.max - limits.min, () => {
-          const rightNNode = cloneNode(repeatingNode, rightNNodeNext)
-
-          rightCNode = createCNode(rightNNode, nextNode)
-
+          rightCNode = createCNode(cloneNode(repeatingNode, rightNNodeNext), nextNode)
           rightNNodeNext = rightCNode
         })
       } // limits.max === Infinity
       else {
         rightCNode = createCNode(undefined, nextNode)
-
-        const rightNNode = cloneNode(repeatingNode, rightCNode)
-
-        rightCNode.next = rightNNode
+        rightCNode.next = cloneNode(repeatingNode, rightCNode)
       }
 
-      let leftNNodeNext: NodeType | null | undefined = rightCNode
+      let leftClonedNodeNext: NodeType | null | undefined = rightCNode
 
       times(limits.min, () => {
-        const leftNNode = cloneNode(repeatingNode, leftNNodeNext)
-
-        leftNNodeNext = leftNNode
+        leftClonedNodeNext = cloneNode(repeatingNode, leftClonedNodeNext)
       })
 
-      return leftNNodeNext!
+      return leftClonedNodeNext!
     }
 
     default: {
