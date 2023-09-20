@@ -217,7 +217,7 @@ const replaceCharacterClassAbbreviations = (regExpAsString: string): string => {
 // const replaceEscapedChars = (regExpAsString: string): string =>
 //   regExpAsString.replaceAll(/[/\\](.)/g, '[$1]')
 
-export const buildRegExpAST = (regExpAsString: string): RegExpType => {
+export const buildRegExpAst = (regExpAsString: string): RegExpType => {
   const [result, rest] = regExp(
     // replaceEscapedChars(replaceCharacterClassAbbreviations(regExpAsString))
     replaceCharacterClassAbbreviations(regExpAsString)
@@ -242,7 +242,7 @@ export const inspect = (value: any) =>
   Deno.inspect(value, { depth: 999, colors: true }) as unknown as string
 export const print = (value: object) => log(inspect(value))
 
-export const showRegExp = (regExpAsString: string) => print(buildRegExpAST(regExpAsString))
+export const showRegExp = (regExpAsString: string) => print(buildRegExpAst(regExpAsString))
 
 export const times = <T>(n: number, fn: (index: number) => T): T[] => [...Array(n).keys()].map(fn)
 
@@ -582,13 +582,13 @@ export const createNfaNodeFromRegExpToken = (
       const limits = astNode.limits
       const repeatingNode = createNfaNodeFromRegExpToken(astNode.expr)
 
-      let rightNNodeNext: NodeType | null | undefined = nextNode
+      let rightNodeNext: NodeType | null | undefined = nextNode
       let rightCNode: NodeType | null | undefined = nextNode
 
       if (limits.max !== Infinity) {
         times(limits.max - limits.min, () => {
-          rightCNode = createCNode(cloneNode(repeatingNode, rightNNodeNext), nextNode)
-          rightNNodeNext = rightCNode
+          rightCNode = createCNode(cloneNode(repeatingNode, rightNodeNext), nextNode)
+          rightNodeNext = rightCNode
         })
       } // limits.max === Infinity
       else {
@@ -612,14 +612,14 @@ export const createNfaNodeFromRegExpToken = (
   }
 }
 
-export const buildRegExpASTAndCreateNfaNodeFromRegExp = (
+export const buildNfaFromRegExp = (
   regExpAsString: string,
   { printNodes = true } = {}
 ): NodeType => {
   const previousNNodeCount = nNodeCount
   const previousCNodeCount = cNodeCount
 
-  const ast = buildRegExpAST(regExpAsString)
+  const ast = buildRegExpAst(regExpAsString)
 
   debug(() => printNodes && `\nAST: \n\n${inspect(ast)}`)
 
@@ -768,7 +768,7 @@ export const buildAndMatch = (
   input: string,
   { exactMatch = false, printNodes = true, arrows = false } = {}
 ): { match: string; start: number; end: number } | typeof NO_MATCH_MESSAGE => {
-  const nfa = buildRegExpASTAndCreateNfaNodeFromRegExp(regExpAsString, {
+  const nfa = buildNfaFromRegExp(regExpAsString, {
     printNodes,
   })
 
