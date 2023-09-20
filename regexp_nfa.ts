@@ -33,6 +33,7 @@ import {
 } from '../reactive-spreadsheet/src/parser_combinators.ts'
 
 const NO_MATCH_MESSAGE = '(sorry, no match)'
+const ENABLE_JS_BEHAVIOR_FOR_CARET_AND_DOLLAR_ANCHORS = true
 
 //////////////////
 // Global state //
@@ -683,13 +684,23 @@ export const matchNfa = (
           return debug(() => 'Matched!'), matchNfa(currentNode.next, rest, index + 1, currentChar)
       } else {
         switch (currentNode.character) {
-          case CARET: // A '^' matches the start of the input string.
-            if (isStartOfInput)
+          case CARET: // A '^' matches the start of the input string (Ruby behavior) or the start of each individual line (JS behavior).
+            if (
+              ENABLE_JS_BEHAVIOR_FOR_CARET_AND_DOLLAR_ANCHORS
+                ? isStartOfInput || previousChar === '\n'
+                : isStartOfInput
+            )
               return debug(() => 'Matched!'), matchNfa(currentNode.next, input, index, previousChar)
+
             break
 
-          case DOLLAR_SIGN: // A '$' matches the end of the input string.
-            if (isEmptyInput) return debug(() => 'Matched!'), { matched: true, input, index }
+          case DOLLAR_SIGN: // A '$' matches the end of the input string (Ruby behavior) or the end of each individual line (JS behavior).
+            if (
+              ENABLE_JS_BEHAVIOR_FOR_CARET_AND_DOLLAR_ANCHORS
+                ? isEmptyInput || currentChar === '\n'
+                : isEmptyInput
+            )
+              return debug(() => 'Matched!'), { matched: true, input, index }
             break
 
           case PERIOD: // A '.' matches anything but the new line (\n).
