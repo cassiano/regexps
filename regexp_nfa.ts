@@ -363,10 +363,10 @@ const cloneNode = (
 
   clones.set(node, clone)
 
-  // At last, set the `next` prop.
+  // With the new clone properly saved in the `clones` map, set its `next` prop.
   clone.next = node.next === undefined ? defaultNext : cloneNode(node.next, defaultNext, clones)
 
-  // Set the `nextAlt` prop (for CNodes).
+  // Set its `nextAlt` prop (for CNodes).
   if (node.type === 'CNode' && clone.type === 'CNode')
     clone.nextAlt =
       node.nextAlt === undefined ? defaultNext : cloneNode(node.nextAlt, defaultNext, clones)
