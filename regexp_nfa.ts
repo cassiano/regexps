@@ -257,10 +257,17 @@ export const debug = (messageOrFalse: () => string | false): void => {
   }
 }
 
-// CNode = "Cross" Node
+//////////////////////////////////////////////////////////////////////////////////////////
+// The following data structures, algorithms etc are based on ideas extracted from this //
+// article from Ken Thompson: https://dl.acm.org/doi/epdf/10.1145/363347.363387         //
+//////////////////////////////////////////////////////////////////////////////////////////
+
+// CNode ("Cross" Node). Splits the current search path, matching one of 2 possible choices/alternatives. It always has one
+// input path and exactly two output paths. An output path equals to `undefined` means an end state (i.e. a successful match).
 type CNodeType = { type: 'CNode'; id: number; next?: NodeType | null; nextAlt?: NodeType | null }
 
-// NNode = "Normal" Node
+// NNode ("Normal" Node). Matches a single character. It always has one input path and exactly one output path. An output path
+// equals to `undefined` means an end state (i.e. a successful match).
 type NNodeType = {
   type: 'NNode'
   id: number
@@ -566,7 +573,7 @@ export const createNfaNodeFromRegExpToken = (
       // -------------------------------------------------------------------
       //
       // a{m,n}b ≅ ▬▶[a] ⭢ [a] ⭢ [a] ⭢ … [a] ⭢ [†] ⭢ [a]   ▜
-      //              ▙▃▃▃▃▃ (m times) ▃▃▃▃▃▟      ↓     ↓     ▐
+      //              ▙▃▃▃▃▃ (m times) ▃▃▃▃▃▟      ↓      ↓    ▐
       //                                        ◀▬[b] ⭠ [†]   ▐
       //                                           ⭡     ↓    ▐
       //                                           │     [a]   ▐
