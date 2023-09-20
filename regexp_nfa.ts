@@ -375,13 +375,13 @@ const cloneNode = (
 }
 
 export const createNfaFromAst = (ast: RegExpType, nextNode?: NodeType | null): NodeType => {
-  let node: NodeType | null | undefined = nextNode
+  let next: NodeType | null | undefined = nextNode
 
   for (let i = ast.length - 1; i >= 0; i--) {
-    node = createNfaNodeFromRegExpToken(ast[i], node)
+    next = createNfaNodeFromRegExpToken(ast[i], next)
   }
 
-  return node!
+  return next!
 }
 
 export const createNfaNodeFromRegExpToken = (
