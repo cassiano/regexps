@@ -374,7 +374,7 @@ const cloneNode = (
   return clone
 }
 
-export const createNfaNodeFromRegExp = (ast: RegExpType, nextNode?: NodeType | null): NodeType => {
+export const createNfaFromAst = (ast: RegExpType, nextNode?: NodeType | null): NodeType => {
   let node: NodeType | null | undefined = nextNode
 
   for (let i = ast.length - 1; i >= 0; i--) {
@@ -395,12 +395,12 @@ export const createNfaNodeFromRegExpToken = (
 
     case 'alternation':
       return createCNode(
-        createNfaNodeFromRegExp(astNode.left, nextNode),
-        createNfaNodeFromRegExp(astNode.right, nextNode)
+        createNfaFromAst(astNode.left, nextNode),
+        createNfaFromAst(astNode.right, nextNode)
       )
 
     case 'parenthesized':
-      return createNfaNodeFromRegExp(astNode.expr, nextNode)
+      return createNfaFromAst(astNode.expr, nextNode)
 
     case 'characterClass': {
       // Non-negative (default) case for character class '[a-dxyz]':
@@ -623,7 +623,7 @@ export const buildRegExpASTAndCreateNfaNodeFromRegExp = (
 
   debug(() => printNodes && `\nAST: \n\n${inspect(ast)}`)
 
-  const nfa = createNfaNodeFromRegExp(ast)
+  const nfa = createNfaFromAst(ast)
 
   debug(() => printNodes && `\nNFA: \n\n${inspect(nfa)}`)
 
