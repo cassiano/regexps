@@ -329,9 +329,10 @@ const mapCharacterClassOptions = memoize((options: CharacterClassOptionsType) =>
 const nodeAsString = (node: NodeType | null | undefined) =>
   node === null || node === undefined ? node : `${node.type} #${node.id}`
 
+// Clones a node, setting its `next` and `nextAlt` (in the case of a CNode) props which are `undefined` to `defaultNext`.
 const cloneNode = (
   node: NodeType | null | undefined,
-  newNext: NodeType | null | undefined,
+  defaultNext: NodeType | null | undefined,
   clones: Map<NodeType, NodeType> = new Map()
 ): NodeType | null | undefined => {
   if (node === null || node === undefined) return node
@@ -363,11 +364,12 @@ const cloneNode = (
   clones.set(node, clone)
 
   // At last, set the `next` prop.
-  clone.next = node.next === undefined ? newNext : cloneNode(node.next, newNext, clones)
+  clone.next = node.next === undefined ? defaultNext : cloneNode(node.next, defaultNext, clones)
 
   // Set the `nextAlt` prop (for CNodes).
   if (node.type === 'CNode' && clone.type === 'CNode')
-    clone.nextAlt = node.nextAlt === undefined ? newNext : cloneNode(node.nextAlt, newNext, clones)
+    clone.nextAlt =
+      node.nextAlt === undefined ? defaultNext : cloneNode(node.nextAlt, defaultNext, clones)
 
   return clone
 }
