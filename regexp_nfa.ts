@@ -711,7 +711,7 @@ export const matchNfa = (
             break
 
           case PERIOD: // A '.' matches anything but the new line (\n).
-            if (currentChar !== NEW_LINE && input.length > 0)
+            if (currentChar !== NEW_LINE && !isEmptyInput)
               return (
                 debug(() => 'Matched!'), matchNfa(currentNode.next, rest, index + 1, currentChar)
               )
