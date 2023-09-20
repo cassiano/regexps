@@ -901,6 +901,14 @@ assertMatches('(a+)*ab', 'aaaaaaaaaaaab', '->aaaaaaaaaaaab<-')
 assertMatches('.*.*=.*', 'x=x', '->x=x<-')
 assertMatches('a*'.repeat(100), 'a'.repeat(1000), '->' + 'a'.repeat(1000) + '<-')
 
+// More than 2 repetition levels.
+assertMatches(
+  '(((a*b)+c)?d,){2,3}',
+  'd,bcd,aaabababaaabbbbbbcd,d',
+  '->d,bcd,aaabababaaabbbbbbcd,<-d'
+)
+assertMatches('(((a*b)+c)?d,){2,3}', 'd', NO_MATCH_MESSAGE)
+
 // Anchors.
 assertMatches('^a+', '...aa', NO_MATCH_MESSAGE)
 assertMatches('^a+', 'aa', '->aa<-')
