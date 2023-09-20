@@ -662,7 +662,7 @@ let matchNfaCount: number
 export const matchNfa = (
   currentNode: NodeType | null | undefined,
   input: string,
-  index = 0,
+  index: number,
   previousChar: SingleChar
 ): { matched: boolean; input: string; index: number } => {
   matchNfaCount++
@@ -670,13 +670,12 @@ export const matchNfa = (
   if (currentNode === undefined) return { matched: true, input, index }
   if (currentNode === null) throw new Error(NO_MATCH_MESSAGE) // return { matched: false, input, index }
 
-  const isEmptyInput = input.length === 0
+  const isEmptyInput = input.length === index
   const isStartOfInput = index === 0
 
   switch (currentNode.type) {
     case 'NNode': {
-      const currentChar = isEmptyInput ? '' : input[0]
-      const rest = input.slice(1)
+      const currentChar = isEmptyInput ? '' : input[index]
 
       debug(
         () =>
@@ -688,7 +687,7 @@ export const matchNfa = (
       if (currentNode.escaped) {
         if (currentChar === currentNode.character)
           // Matches character literally.
-          return debug(() => 'Matched!'), matchNfa(currentNode.next, rest, index + 1, currentChar)
+          return debug(() => 'Matched!'), matchNfa(currentNode.next, input, index + 1, currentChar)
       } else {
         switch (currentNode.character) {
           case CARET: // A '^' matches the start of the input string (Ruby behavior) or the start of each individual line (JS behavior).
@@ -713,7 +712,7 @@ export const matchNfa = (
           case PERIOD: // A '.' matches anything but the new line (\n).
             if (currentChar !== NEW_LINE && !isEmptyInput)
               return (
-                debug(() => 'Matched!'), matchNfa(currentNode.next, rest, index + 1, currentChar)
+                debug(() => 'Matched!'), matchNfa(currentNode.next, input, index + 1, currentChar)
               )
             break
 
@@ -731,7 +730,7 @@ export const matchNfa = (
           default: // Matches character literally.
             if (currentChar === currentNode.character)
               return (
-                debug(() => 'Matched!'), matchNfa(currentNode.next, rest, index + 1, currentChar)
+                debug(() => 'Matched!'), matchNfa(currentNode.next, input, index + 1, currentChar)
               )
         }
       }
@@ -781,15 +780,34 @@ export const matchNfa = (
   return { matched: false, input, index }
 }
 
-export const buildAndMatch = (
+type BuildNfaFromRegExpAndMatchOptionsType = {
+  exactMatch?: boolean
+  printNodes?: boolean
+  arrows?: boolean
+  startingIndex?: number
+}
+
+export const buildNfaFromRegExpAndMatch = (
   regExpAsString: string,
   input: string,
-  { exactMatch = false, printNodes = true, arrows = false, startingIndex = 0 } = {}
+  options: BuildNfaFromRegExpAndMatchOptionsType = {}
 ): { match: string; start: number; end: number } | typeof NO_MATCH_MESSAGE => {
   const nfa = buildNfaFromRegExp(regExpAsString, {
-    printNodes,
+    printNodes: options.printNodes,
   })
 
+  return matchFromNfa(nfa, input, options)
+}
+
+export const matchFromNfa = (
+  nfa: NodeType,
+  input: string,
+  {
+    exactMatch = false,
+    arrows = false,
+    startingIndex = 0,
+  }: BuildNfaFromRegExpAndMatchOptionsType = {}
+): { match: string; start: number; end: number } | typeof NO_MATCH_MESSAGE => {
   matchNfaCount = 0
 
   // Try to match the regular expression from left to right.
@@ -798,11 +816,7 @@ export const buildAndMatch = (
     index < startingIndex + (exactMatch || input.length === 0 ? 1 : input.length);
     index++
   ) {
-    let rest: string
-
-    const slicedInput = input.slice(index)
-
-    const match = matchNfa(nfa, slicedInput, index, index > 0 ? input[index - 1] : '')
+    const match = matchNfa(nfa, input, index, index > 0 ? input[index - 1] : '')
 
     debug(() => `match: ${inspect(match)}, accumulated matchNfaCount: ${matchNfaCount}`)
 
@@ -811,9 +825,13 @@ export const buildAndMatch = (
 
       return {
         match: arrows
-          ? [input.slice(0, index), '->', matchedString, '<-', input.slice(match.index)].join(
-              EMPTY_STRING
-            )
+          ? [
+              input.slice(startingIndex, index),
+              '->',
+              matchedString,
+              '<-',
+              input.slice(match.index),
+            ].join(EMPTY_STRING)
           : matchedString,
         start: index,
         end: match.index - 1,
@@ -829,13 +847,15 @@ export const scan = (regExpAsString: string, input: string): string[] => {
 
   const matches = []
 
+  const nfa = buildNfaFromRegExp(regExpAsString)
+
   while (true) {
-    const match = buildAndMatch(regExpAsString, input, { startingIndex })
+    const match = matchFromNfa(nfa, input, { startingIndex })
 
     if (typeof match !== 'string') {
       matches.push(match.match)
 
-      startingIndex += match.end + 1
+      startingIndex = match.end + 1
     } else {
       break // Match unsuccessful! Stop scan.
     }
@@ -854,7 +874,7 @@ const assertMatches = (
   matchedResult: string,
   exactMatch = false
 ) => {
-  const match = buildAndMatch(regExpAsString, input, { exactMatch, arrows: true })
+  const match = buildNfaFromRegExpAndMatch(regExpAsString, input, { exactMatch, arrows: true })
 
   assertEquals(typeof match === 'string' ? match : match.match, matchedResult)
 }
@@ -909,6 +929,7 @@ assertEquals(
   ),
   ['john.doe@gmail.com', 'john@gmail.com.us', 'jo.hn.do.e@g.mail.co.m']
 )
+assertEquals(scan('/d{2}', '01234567'), ['01', '23', '45', '67'])
 
 log('Done!')
 
