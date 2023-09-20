@@ -784,7 +784,7 @@ export const matchNfa = (
 export const buildAndMatch = (
   regExpAsString: string,
   input: string,
-  { exactMatch = false, printNodes = true, arrows = false } = {}
+  { exactMatch = false, printNodes = true, arrows = false, startingIndex = 0 } = {}
 ): { match: string; start: number; end: number } | typeof NO_MATCH_MESSAGE => {
   const nfa = buildNfaFromRegExp(regExpAsString, {
     printNodes,
@@ -793,12 +793,16 @@ export const buildAndMatch = (
   matchNfaCount = 0
 
   // Try to match the regular expression from left to right.
-  for (let index = 0; index < (exactMatch || input.length === 0 ? 1 : input.length); index++) {
+  for (
+    let index = startingIndex;
+    index < startingIndex + (exactMatch || input.length === 0 ? 1 : input.length);
+    index++
+  ) {
     let rest: string
 
     const slicedInput = input.slice(index)
 
-    const match = matchNfa(nfa, slicedInput, index, index > 0 ? input.slice(index - 1, index) : '')
+    const match = matchNfa(nfa, slicedInput, index, index > 0 ? input[index - 1] : '')
 
     debug(() => `match: ${inspect(match)}, accumulated matchNfaCount: ${matchNfaCount}`)
 
@@ -821,16 +825,17 @@ export const buildAndMatch = (
 }
 
 export const scan = (regExpAsString: string, input: string): string[] => {
-  let rest = input
+  let startingIndex = 0
+
   const matches = []
 
   while (true) {
-    const match = buildAndMatch(regExpAsString, rest)
+    const match = buildAndMatch(regExpAsString, input, { startingIndex })
 
     if (typeof match !== 'string') {
       matches.push(match.match)
 
-      rest = rest.slice(match.end + 1)
+      startingIndex += match.end + 1
     } else {
       break // Match unsuccessful! Stop scan.
     }
@@ -888,6 +893,14 @@ assertMatches('\b/w{4}', 'some_word   ', '->some<-_word   ')
 assertMatches('/w{4}\b', '           some_word', '           some_->word<-')
 assertMatches('\b/w\b', '               x              ', '               ->x<-              ')
 assertMatches('\b/w\b', '               xx              ', NO_MATCH_MESSAGE)
+assertEquals(
+  scan('^.', 'abc\ndef\nghi'),
+  ENABLE_JS_BEHAVIOR_FOR_CARET_AND_DOLLAR_ANCHORS ? ['a', 'd', 'g'] : ['a']
+)
+assertEquals(
+  scan('.$', 'abc\ndef\nghi'),
+  ENABLE_JS_BEHAVIOR_FOR_CARET_AND_DOLLAR_ANCHORS ? ['c', 'f', 'i'] : ['i']
+)
 
 assertEquals(
   scan(
