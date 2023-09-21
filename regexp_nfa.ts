@@ -398,7 +398,7 @@ export const createNfaNodeFromRegExpToken = (
 ): NodeType => {
   switch (astNode.type) {
     case 'singleChar':
-      return createNNode(astNode.character, { next: nextNode })
+      return createNNode(astNode.character, { next: nextNode, isLiteral: false })
       break
 
     case 'alternation':
@@ -581,16 +581,24 @@ const isWordChar = (char: SingleChar) => {
 
 let matchNfaCount: number
 
+type MatchNfaReturnType = {
+  matched: boolean
+  input: string
+  index: number
+  skipFollowingCNodeNextAltCall?: boolean
+}
+
 export const matchNfa = (
   currentNode: NodeType | null | undefined,
   input: string,
   index: number,
   previousChar: SingleChar
-): { matched: boolean; input: string; index: number } => {
+): MatchNfaReturnType => {
   matchNfaCount++
 
   if (currentNode === undefined) return { matched: true, input, index }
-  if (currentNode === null) return { matched: false, input, index } // throw new Error(NO_MATCH_MESSAGE)
+  if (currentNode === null)
+    return { matched: false, input, index, skipFollowingCNodeNextAltCall: true } // throw new Error(NO_MATCH_MESSAGE)
 
   const isEmptyInput = input.length === index
   const isStartOfInput = index === 0
@@ -678,7 +686,9 @@ export const matchNfa = (
           ),
           match
         )
-      else {
+
+      // Notice `match.matched` is false.
+      if (!match.skipFollowingCNodeNextAltCall) {
         match = matchNfa(currentNode.nextAlt, input, index, previousChar)
 
         if (match.matched)
@@ -721,6 +731,14 @@ export const buildNfaFromRegExpAndMatch = (
   return matchFromNfa(nfa, input, options)
 }
 
+type MatchFromNfaReturnType =
+  | {
+      match: string
+      start: number
+      end: number
+    }
+  | typeof NO_MATCH_MESSAGE
+
 export const matchFromNfa = (
   nfa: NodeType,
   input: string,
@@ -729,7 +747,7 @@ export const matchFromNfa = (
     arrows = false,
     startingIndex = 0,
   }: BuildNfaFromRegExpAndMatchOptionsType = {}
-): { match: string; start: number; end: number } | typeof NO_MATCH_MESSAGE => {
+): MatchFromNfaReturnType => {
   matchNfaCount = 0
 
   // Try to match the regular expression from left to right.
@@ -810,7 +828,7 @@ assertMatches('iss', 'mississipi', 'm->iss<-issipi')
 assertMatches('(iss)+', 'mississipi', 'm->ississ<-ipi')
 assertMatches('is+', 'mississipi', 'm->iss<-issipi')
 assertMatches('(is+)+', 'mississipi', 'm->ississ<-ipi')
-assertMatches('/d{2}:/d{2}/s*([ap]m)', '12:50 am', '->12:50 am<-')
+assertMatches('/d{2}/D/d{2}/s*([ap]m)', '12:50 am', '->12:50 am<-')
 assertMatches('a*', '...aa', '-><-...aa')
 assertMatches('a*', 'aa', '->aa<-')
 assertMatches('a+', '...aa', '...->aa<-')
@@ -863,6 +881,23 @@ assertEquals(
   scan('.$', 'regexps\nare\nreally\ncool'),
   ENABLE_JS_BEHAVIOR_FOR_CARET_AND_DOLLAR_ANCHORS ? ['s', 'e', 'y', 'l'] : ['l']
 )
+assertEquals(scan('/w', 'ab+cd-efg*hijk/lmn'), [
+  'a',
+  'b',
+  'c',
+  'd',
+  'e',
+  'f',
+  'g',
+  'h',
+  'i',
+  'j',
+  'k',
+  'l',
+  'm',
+  'n',
+])
+assertEquals(scan('/W', 'ab+cd-efg*hijk/lmn'), ['+', '-', '*', '/'])
 
 log('Done!')
 
