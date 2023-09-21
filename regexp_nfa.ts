@@ -382,7 +382,6 @@ export const createNfaNodeFromRegExpToken = (
   switch (astNode.type) {
     case 'singleChar':
       return createNNode(astNode.character, { next: nextNode, isLiteral: false })
-      break
 
     case 'alternation':
       return createCNode(
