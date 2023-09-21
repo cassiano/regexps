@@ -518,8 +518,8 @@ export const createNfaNodeFromRegExpToken = (
     }
 
     default: {
-      const _exhaustiveCheck: never = astNode
-      throw new Error('Invalid AST node type')
+      const exhaustiveCheck: never = astNode
+      throw new Error(`[${exhaustiveCheck}] Invalid AST node type`)
     }
   }
 }
