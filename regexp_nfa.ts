@@ -262,12 +262,13 @@ const debug = (messageOrFalse: () => string | false): void => {
 // article from Ken Thompson: https://dl.acm.org/doi/epdf/10.1145/363347.363387         //
 //////////////////////////////////////////////////////////////////////////////////////////
 
-// CNode ("Cross" Node). Splits the current search path, matching one of 2 possible choices/alternatives. It always has one
-// input path and exactly two output paths. An output path equals to `undefined` means an end state (i.e. a successful match).
+// CNode ("Cross" Node). Splits the current search path, matching one of 2 possible choices/alternatives.
+// It always has one input path and exactly two output paths. An output path equals to `undefined` means
+// an end state (i.e. a successful match).
 type CNodeType = { type: 'CNode'; id: number; next?: NodeType | null; nextAlt?: NodeType | null }
 
-// NNode ("Normal" Node). Matches a single character. It always has one input path and exactly one output path. An output path
-// equals to `undefined` means an end state (i.e. a successful match).
+// NNode ("Normal" Node). Matches a single character. It always has one input path and exactly one output
+// path. An output path equals to `undefined` means an end state (i.e. a successful match).
 type NNodeType = {
   type: 'NNode'
   id: number
@@ -293,8 +294,8 @@ const createNNode = (
 const createCNode = (next?: NodeType | null, nextAlt?: NodeType | null) =>
   ({ type: 'CNode', id: cNodeCount++, next, nextAlt } as CNodeType)
 
-// Maps a character class range into an array of its individual constituint characters. E.g.:
-// takes the 1st range in '[a-dxyz]' ('a-d'), and transforms it into [ "a", "b", "c", "d" ].
+// Maps a character class range into an array of its individual constituint characters. E.g.: takes
+// the 1st range in '[a-dxyz]' ('a-d'), and transforms it into [ "a", "b", "c", "d" ].
 const mapCharacterClassRange = memoize((range: CharacterClassRangeType) =>
   times(range.to.charCodeAt(0) - range.from.charCodeAt(0) + 1, i =>
     String.fromCharCode(range.from.charCodeAt(0) + i)
@@ -310,7 +311,8 @@ const mapCharacterClassOptions = memoize((options: CharacterClassOptionsType) =>
 const nodeAsString = (node: NodeType | null | undefined) =>
   node === null || node === undefined ? node : `${node.type} #${node.id}`
 
-// Clones a node, setting its `next` and `nextAlt` (in the case of a CNode) props which are `undefined` to `defaultNext`.
+// Clones a node, setting its `next` and `nextAlt` (in the case of a CNode) props which are `undefined`
+// to `defaultNext`.
 const cloneNode = (
   node: NodeType | null | undefined,
   defaultNext: NodeType | null | undefined,
@@ -323,8 +325,8 @@ const cloneNode = (
 
   let partialClone: NodeType
 
-  // Clone the node, delaying the creation of its `next` and `nextAlt` (in the case of a CNode) props, so the new node can be added right away
-  // into the clones map.
+  // Clone the node, delaying the creation of its `next` and `nextAlt` (in the case of a CNode) props,
+  // so the new node can be added right away into the clones map.
   switch (node.type) {
     case 'NNode':
       partialClone = createNNode(node.character, {
