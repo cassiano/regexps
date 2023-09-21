@@ -295,30 +295,13 @@ let cNodeCount: number
 
 export const createNNode = (
   character: SingleChar,
-  { next, previous, previousProp, isLiteral = false }: CreateNNodeOptionsType = {}
-) => {
-  const node: NNodeType = { type: 'NNode', id: nNodeCount++, character, isLiteral, next }
-
-  if (previous)
-    if (previous.type === 'NNode') previous.next = node
-    else previous[previousProp ?? 'next'] = node
-
-  return node
-}
+  { next, isLiteral = false }: CreateNNodeOptionsType = {}
+) => ({ type: 'NNode', id: nNodeCount++, character, isLiteral, next } as NNodeType)
 
 export const createCNode = (
   next: NodeType | null | undefined,
-  nextAlt: NodeType | null | undefined,
-  { previous, previousProp }: CreateCNodeOptionsType = {}
-) => {
-  const node: CNodeType = { type: 'CNode', id: cNodeCount++, next, nextAlt }
-
-  if (previous)
-    if (previous.type === 'NNode') previous.next = node
-    else previous[previousProp ?? 'next'] = node
-
-  return node
-}
+  nextAlt: NodeType | null | undefined
+) => ({ type: 'CNode', id: cNodeCount++, next, nextAlt } as CNodeType)
 
 // Maps a character class range into an array of its individual constituint characters. E.g.:
 // takes the 1st range in '[a-dxyz]' ('a-d'), and transforms it into [ "a", "b", "c", "d" ].
