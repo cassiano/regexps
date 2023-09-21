@@ -263,36 +263,78 @@ const debug = (messageOrFalse: () => string | false): void => {
 //////////////////////////////////////////////////////////////////////////////////////////
 
 // CNode ("Cross" Node). Splits the current search path, matching one of 2 possible choices/alternatives.
-// It always has one input path and exactly two output paths. An output path equals to `undefined` means
-// an end state (i.e. a successful match).
-type CNodeType = { type: 'CNode'; id: number; next?: NodeType | null; nextAlt?: NodeType | null }
+// It always has one input path and exactly two output paths. An output path equals to `singletonEnode`
+// means an end state (i.e. a successful match).
+type CNodeType = { type: 'CNode'; id: number; next: NodeType; nextAlt: NodeType }
 
 // NNode ("Normal" Node). Matches a single character. It always has one input path and exactly one output
-// path. An output path equals to `undefined` means an end state (i.e. a successful match).
+// path. An output path equals to `singletonEnode` means an end state (i.e. a successful match).
 type NNodeType = {
   type: 'NNode'
   id: number
   character: SingleChar
   isLiteral: boolean
-  next?: NodeType | null
+  next: NodeType
 }
-type NodeType = NNodeType | CNodeType
 
-type CreateNNodeOptionsType = {
-  next?: NodeType | null
-  isLiteral?: boolean
+// ENode ("End" node)
+type ENodeType = {
+  type: 'ENode'
+  id: number
+}
+
+// FNode ("Failed match" node)
+type FNodeType = {
+  type: 'FNode'
+  id: number
+}
+
+type NodeType = NNodeType | CNodeType | ENodeType | FNodeType
+
+const singletonEnode: ENodeType = {
+  type: 'ENode',
+  id: 0,
+}
+
+const singletonFnode: FNodeType = {
+  type: 'FNode',
+  id: 0,
 }
 
 let nNodeCount: number
 let cNodeCount: number
 
-const createNNode = (
-  character: SingleChar,
-  { next, isLiteral = false }: CreateNNodeOptionsType = {}
-) => ({ type: 'NNode', id: nNodeCount++, character, isLiteral, next } as NNodeType)
+const createNNode = (character: SingleChar, next: NodeType, isLiteral: boolean): NNodeType => ({
+  type: 'NNode',
+  id: nNodeCount++,
+  character,
+  isLiteral,
+  next,
+})
 
-const createCNode = (next?: NodeType | null, nextAlt?: NodeType | null) =>
-  ({ type: 'CNode', id: cNodeCount++, next, nextAlt } as CNodeType)
+type PartialBy<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>
+
+type PartialNNodeType = PartialBy<NNodeType, 'next'>
+type PartialCNodeType = PartialBy<CNodeType, 'next' | 'nextAlt'>
+
+const createPartialNNode = (character: SingleChar, isLiteral: boolean): PartialNNodeType => ({
+  type: 'NNode',
+  id: nNodeCount++,
+  character,
+  isLiteral,
+})
+
+const createCNode = (next: NodeType, nextAlt: NodeType): CNodeType => ({
+  type: 'CNode',
+  id: cNodeCount++,
+  next,
+  nextAlt,
+})
+
+const createPartialCNode = (): PartialCNodeType => ({
+  type: 'CNode',
+  id: cNodeCount++,
+})
 
 // Maps a character class range into an array of its individual constituint characters. E.g.: takes
 // the 1st range in '[a-dxyz]' ('a-d'), and transforms it into [ "a", "b", "c", "d" ].
@@ -308,39 +350,38 @@ const mapCharacterClassOptions = memoize((options: CharacterClassOptionsType) =>
   options.flatMap(option => (typeof option === 'string' ? option : mapCharacterClassRange(option)))
 )
 
-const nodeAsString = (node: NodeType | null | undefined) =>
-  node === null || node === undefined ? node : `${node.type} #${node.id}`
+const nodeAsString = (node: NodeType) => `${node.type} #${node.id}`
 
 // Clones a node, setting its `next` and `nextAlt` (in the case of a CNode) props which are `undefined`
 // to `defaultNext`.
 const cloneNode = (
-  node: NodeType | null | undefined,
-  defaultNext: NodeType | null | undefined,
-  partialClonesHistory: Map<NodeType, NodeType> = new Map()
-): NodeType | null | undefined => {
-  if (node === null || node === undefined) return node
-
+  node: NodeType,
+  defaultNext: NodeType,
+  partialClonesHistory: Map<NodeType, PartialCNodeType | PartialNNodeType> = new Map()
+): NodeType => {
   // Node already cloned?
-  if (partialClonesHistory.has(node)) return partialClonesHistory.get(node)
+  if (partialClonesHistory.has(node)) return partialClonesHistory.get(node) as NodeType
 
-  let partialClone: NodeType
+  let partialClone: PartialCNodeType | PartialNNodeType
 
   // Clone the node, delaying the creation of its `next` and `nextAlt` (in the case of a CNode) props,
   // so the new node can be added right away into the clones map.
   switch (node.type) {
     case 'NNode':
-      partialClone = createNNode(node.character, {
-        isLiteral: node.isLiteral,
-      })
+      partialClone = createPartialNNode(node.character, node.isLiteral)
       break
 
     case 'CNode':
-      partialClone = createCNode(undefined, undefined)
+      partialClone = createPartialCNode()
       break
 
+    case 'ENode':
+    case 'FNode':
+      return node
+
     default: {
-      const _exhaustiveCheck: never = node
-      throw new Error('Invalid NFA node type')
+      const exhaustiveCheck: never = node
+      throw new Error(`[${exhaustiveCheck}] Invalid NFA node type`)
     }
   }
 
@@ -348,35 +389,34 @@ const cloneNode = (
 
   // With the new clone properly saved in the `clones` map, set its `next` prop.
   partialClone.next =
-    node.next === undefined ? defaultNext : cloneNode(node.next, defaultNext, partialClonesHistory)
+    node.next === singletonEnode
+      ? defaultNext
+      : cloneNode(node.next, defaultNext, partialClonesHistory)
 
   // Set its `nextAlt` prop (for CNodes).
   if (node.type === 'CNode' && partialClone.type === 'CNode')
     partialClone.nextAlt =
-      node.nextAlt === undefined
+      node.nextAlt === singletonEnode
         ? defaultNext
         : cloneNode(node.nextAlt, defaultNext, partialClonesHistory)
 
-  return partialClone
+  return partialClone as NodeType
 }
 
-const createNfaFromAst = (ast: RegExpType, nextNode?: NodeType | null): NodeType => {
-  let next: NodeType | null | undefined = nextNode
+const createNfaFromAst = (ast: RegExpType, nextNode: NodeType): NodeType => {
+  let next: NodeType = nextNode
 
   for (let i = ast.length - 1; i >= 0; i--) {
     next = createNfaNodeFromRegExpToken(ast[i], next)
   }
 
-  return next!
+  return next
 }
 
-const createNfaNodeFromRegExpToken = (
-  astNode: RegExpTokenType,
-  nextNode?: NodeType | null
-): NodeType => {
+const createNfaNodeFromRegExpToken = (astNode: RegExpTokenType, nextNode: NodeType): NodeType => {
   switch (astNode.type) {
     case 'singleChar':
-      return createNNode(astNode.character, { next: nextNode, isLiteral: false })
+      return createNNode(astNode.character, nextNode, false)
 
     case 'alternation':
       return createCNode(
@@ -389,22 +429,22 @@ const createNfaNodeFromRegExpToken = (
 
     case 'characterClass': {
       const options = mapCharacterClassOptions(astNode.options)
-      let lastNode: NodeType = createNNode(options.at(-1)!, { next: nextNode, isLiteral: true })
+      let lastNode: NodeType = createNNode(options.at(-1)!, nextNode, true)
 
       if (astNode.negated) {
-        const periodNode = createNNode(PERIOD, { next: nextNode, isLiteral: false }) // All but "\n"
-        const newLineNode = createNNode(NEW_LINE, { next: nextNode, isLiteral: true }) // Only "\n"
+        const periodNode = createNNode(PERIOD, nextNode, false) // All but "\n"
+        const newLineNode = createNNode(NEW_LINE, nextNode, true) // Only "\n"
         const catchAllNode = createCNode(periodNode, newLineNode)
 
-        lastNode.next = null // next = null means "no match!".
+        lastNode.next = singletonFnode // FNode means "no match!".
         lastNode = createCNode(lastNode, catchAllNode)
-        nextNode = null
+        nextNode = singletonFnode
       }
 
       let accNode: NodeType = lastNode
 
       for (let i = options.length - 2; i >= 0; i--) {
-        const node = createNNode(options[i], { next: nextNode, isLiteral: true })
+        const node = createNNode(options[i], nextNode, true)
 
         accNode = createCNode(node, accNode)
       }
@@ -487,10 +527,10 @@ const createNfaNodeFromRegExpToken = (
       //                                           └──── [a]   ▟
 
       const limits = astNode.limits
-      const repeatingNode = createNfaNodeFromRegExpToken(astNode.expr)
+      const repeatingNode = createNfaNodeFromRegExpToken(astNode.expr, singletonEnode)
 
-      let rightNodeNext: NodeType | null | undefined = nextNode
-      let rightCNode: NodeType | null | undefined = nextNode
+      let rightNodeNext: NodeType = nextNode
+      let rightCNode: NodeType = nextNode
 
       if (limits.max !== Infinity) {
         times(limits.max - limits.min, () => {
@@ -499,11 +539,11 @@ const createNfaNodeFromRegExpToken = (
         })
       } // limits.max === Infinity
       else {
-        rightCNode = createCNode(undefined, nextNode)
-        rightCNode.next = cloneNode(repeatingNode, rightCNode)
+        rightCNode = createCNode(singletonFnode, nextNode) // Notice `singletonFnode` is only temporary.
+        rightCNode.next = cloneNode(repeatingNode, rightCNode) // Since it is replaced here.
       }
 
-      let leftClonedNodeNext: NodeType | null | undefined = rightCNode
+      let leftClonedNodeNext: NodeType = rightCNode
 
       times(limits.min, () => {
         leftClonedNodeNext = cloneNode(repeatingNode, leftClonedNodeNext)
@@ -530,7 +570,7 @@ export const buildNfaFromRegExp = (
 
   debug(() => printNodes && `\nAST: \n\n${inspect(ast)}`)
 
-  const nfa = createNfaFromAst(ast)
+  const nfa = createNfaFromAst(ast, singletonEnode)
 
   debug(() => printNodes && `\nNFA: \n\n${inspect(nfa)}`)
 
@@ -566,17 +606,12 @@ type MatchNfaReturnType = {
 }
 
 const matchNfa = (
-  currentNode: NodeType | null | undefined,
+  currentNode: NodeType,
   input: string,
   index: number,
   previousChar: SingleChar
 ): MatchNfaReturnType => {
   matchNfaCount++
-
-  if (currentNode === undefined) return { matched: true, input, index }
-
-  if (currentNode === null)
-    return { matched: false, input, index, skipFollowingCNodeNextAltCall: true }
 
   const isEmptyInput = input.length === index
   const isStartOfInput = index === 0
@@ -679,9 +714,15 @@ const matchNfa = (
 
       break
 
+    case 'ENode':
+      return { matched: true, input, index }
+
+    case 'FNode':
+      return { matched: false, input, index, skipFollowingCNodeNextAltCall: true }
+
     default: {
-      const _exhaustiveCheck: never = currentNode
-      throw new Error('Invalid NFA node type')
+      const exhaustiveCheck: never = currentNode
+      throw new Error(`[${exhaustiveCheck}] Invalid NFA node type`)
     }
   }
 
