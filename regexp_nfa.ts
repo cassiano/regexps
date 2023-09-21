@@ -312,28 +312,11 @@ const createNNode = (character: SingleChar, next: NodeType, isLiteral: boolean):
   next,
 })
 
-type PartialBy<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>
-
-type PartialNNodeType = PartialBy<NNodeType, 'next'>
-type PartialCNodeType = PartialBy<CNodeType, 'next' | 'nextAlt'>
-
-const createPartialNNode = (character: SingleChar, isLiteral: boolean): PartialNNodeType => ({
-  type: 'NNode',
-  id: nNodeCount++,
-  character,
-  isLiteral,
-})
-
 const createCNode = (next: NodeType, nextAlt: NodeType): CNodeType => ({
   type: 'CNode',
   id: cNodeCount++,
   next,
   nextAlt,
-})
-
-const createPartialCNode = (): PartialCNodeType => ({
-  type: 'CNode',
-  id: cNodeCount++,
 })
 
 // Maps a character class range into an array of its individual constituint characters. E.g.: takes
@@ -352,27 +335,28 @@ const mapCharacterClassOptions = memoize((options: CharacterClassOptionsType) =>
 
 const nodeAsString = (node: NodeType) => `${node.type} #${node.id}`
 
-// Clones a node, setting its `next` and `nextAlt` (in the case of a CNode) props which are `undefined`
-// to `defaultNext`.
+// Clones a node, setting its `next` and `nextAlt` (in the case of a CNode) props which are
+// `singletonEnode` to `defaultNext`.
 const cloneNode = (
   node: NodeType,
   defaultNext: NodeType,
-  partialClonesHistory: Map<NodeType, PartialCNodeType | PartialNNodeType> = new Map()
+  partialClonesHistory: Map<NodeType, NodeType> = new Map()
 ): NodeType => {
   // Node already cloned?
   if (partialClonesHistory.has(node)) return partialClonesHistory.get(node) as NodeType
 
-  let partialClone: PartialCNodeType | PartialNNodeType
+  let partialClone: NodeType
 
-  // Clone the node, delaying the creation of its `next` and `nextAlt` (in the case of a CNode) props,
-  // so the new node can be added right away into the clones map.
+  // Clone the node for NNode and CNode types, delaying the creation of its `next` and `nextAlt` (in
+  // the case of a CNode) props, so the new node can be added right away into the clones map. We
+  // temporarily use `singletonFnode` in place of the actual (yet to be cloned) nodes.
   switch (node.type) {
     case 'NNode':
-      partialClone = createPartialNNode(node.character, node.isLiteral)
+      partialClone = createNNode(node.character, singletonFnode, node.isLiteral)
       break
 
     case 'CNode':
-      partialClone = createPartialCNode()
+      partialClone = createCNode(singletonFnode, singletonFnode)
       break
 
     case 'ENode':
@@ -539,8 +523,10 @@ const createNfaNodeFromRegExpToken = (astNode: RegExpTokenType, nextNode: NodeTy
         })
       } // limits.max === Infinity
       else {
-        rightCNode = createCNode(singletonFnode, nextNode) // Notice `singletonFnode` is only temporary.
-        rightCNode.next = cloneNode(repeatingNode, rightCNode) // Since it is replaced here.
+        // Notice that the use of `singletonFnode` below as the `next` prop is only temporary, since it
+        // will be replaced right after creating the CNode.
+        rightCNode = createCNode(singletonFnode, nextNode)
+        rightCNode.next = cloneNode(repeatingNode, rightCNode)
       }
 
       let leftClonedNodeNext: NodeType = rightCNode
