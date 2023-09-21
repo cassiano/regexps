@@ -272,7 +272,7 @@ type NNodeType = {
   type: 'NNode'
   id: number
   character: SingleChar
-  escaped: boolean
+  isLiteral: boolean
   next?: NodeType | null
 }
 type NodeType = NNodeType | CNodeType
@@ -282,7 +282,7 @@ type CreateNNodeOptionsType = {
   next?: NodeType | null
   previous?: NodeType
   previousProp?: previousNavigationPropType
-  escaped?: boolean
+  isLiteral?: boolean
 }
 
 type CreateCNodeOptionsType = {
@@ -295,9 +295,9 @@ let cNodeCount: number
 
 export const createNNode = (
   character: SingleChar,
-  { next, previous, previousProp, escaped = false }: CreateNNodeOptionsType = {}
+  { next, previous, previousProp, isLiteral = false }: CreateNNodeOptionsType = {}
 ) => {
-  const node: NNodeType = { type: 'NNode', id: nNodeCount++, character, escaped, next }
+  const node: NNodeType = { type: 'NNode', id: nNodeCount++, character, isLiteral, next }
 
   if (previous)
     if (previous.type === 'NNode') previous.next = node
@@ -355,7 +355,7 @@ const cloneNode = (
   switch (node.type) {
     case 'NNode':
       clone = createNNode(node.character, {
-        escaped: node.escaped,
+        isLiteral: node.isLiteral,
       })
       break
 
@@ -411,90 +411,12 @@ export const createNfaNodeFromRegExpToken = (
       return createNfaFromAst(astNode.expr, nextNode)
 
     case 'characterClass': {
-      // Non-negative (default) case for character class '[a-dxyz]':
-      //
-      // {
-      //   type: "CNode",
-      //   id: 16,
-      //   next: { type: "NNode", id: 18, character: "a", escaped: false, next: undefined },
-      //   nextAlt: {
-      //     type: "CNode",
-      //     id: 15,
-      //     next: { type: "NNode", id: 17, character: "b", escaped: false, next: undefined },
-      //     nextAlt: {
-      //       type: "CNode",
-      //       id: 14,
-      //       next: { type: "NNode", id: 16, character: "c", escaped: false, next: undefined },
-      //       nextAlt: {
-      //         type: "CNode",
-      //         id: 13,
-      //         next: { type: "NNode", id: 15, character: "d", escaped: false, next: undefined },
-      //         nextAlt: {
-      //           type: "CNode",
-      //           id: 12,
-      //           next: { type: "NNode", id: 14, character: "x", escaped: false, next: undefined },
-      //           nextAlt: {
-      //             type: "CNode",
-      //             id: 11,
-      //             next: { type: "NNode", id: 13, character: "y", escaped: false, next: undefined },
-      //             nextAlt: { type: "NNode", id: 12, character: "z", escaped: false, next: undefined }
-      //           }
-      //         }
-      //       }
-      //     }
-      //   }
-      // }
-      //
-      // Negative case for character class '[a-dxyz]':
-      //
-      // {
-      //   type: "CNode",
-      //   id: 24,
-      //   next: { type: "NNode", id: 27, character: "a", escaped: false, next: null },
-      //   nextAlt: {
-      //     type: "CNode",
-      //     id: 23,
-      //     next: { type: "NNode", id: 26, character: "b", escaped: false, next: null },
-      //     nextAlt: {
-      //       type: "CNode",
-      //       id: 22,
-      //       next: { type: "NNode", id: 25, character: "c", escaped: false, next: null },
-      //       nextAlt: {
-      //         type: "CNode",
-      //         id: 21,
-      //         next: { type: "NNode", id: 24, character: "d", escaped: false, next: null },
-      //         nextAlt: {
-      //           type: "CNode",
-      //           id: 20,
-      //           next: { type: "NNode", id: 23, character: "x", escaped: false, next: null },
-      //           nextAlt: {
-      //             type: "CNode",
-      //             id: 19,
-      //             next: { type: "NNode", id: 22, character: "y", escaped: false, next: null },
-      //             nextAlt: {
-      //               type: "CNode",
-      //               id: 18,
-      //               next: { type: "NNode", id: 19, character: "z", escaped: false, next: null },
-      //               nextAlt: {
-      //                 type: "CNode",
-      //                 id: 17,
-      //                 next: { type: "NNode", id: 20, character: ".", escaped: false, next: undefined },
-      //                 nextAlt: { type: "NNode", id: 21, character: "\n", escaped: false, next: undefined }
-      //               }
-      //             }
-      //           }
-      //         }
-      //       }
-      //     }
-      //   }
-      // }
-
       const options = mapCharacterClassOptions(astNode.options)
-      let lastNode: NodeType = createNNode(options.at(-1)!, { next: nextNode, escaped: true })
+      let lastNode: NodeType = createNNode(options.at(-1)!, { next: nextNode, isLiteral: true })
 
       if (astNode.negated) {
-        const periodNode = createNNode(PERIOD, { next: nextNode }) // All but "\n"
-        const newLineNode = createNNode(NEW_LINE, { next: nextNode }) // Only "\n"
+        const periodNode = createNNode(PERIOD, { next: nextNode, isLiteral: false }) // All but "\n"
+        const newLineNode = createNNode(NEW_LINE, { next: nextNode, isLiteral: true }) // Only "\n"
         const catchAllNode = createCNode(periodNode, newLineNode)
 
         lastNode.next = null // next = null means "no match!".
@@ -505,7 +427,7 @@ export const createNfaNodeFromRegExpToken = (
       let accNode: NodeType = lastNode
 
       for (let i = options.length - 2; i >= 0; i--) {
-        const node = createNNode(options[i], { next: nextNode, escaped: true })
+        const node = createNNode(options[i], { next: nextNode, isLiteral: true })
 
         accNode = createCNode(node, accNode)
       }
@@ -668,7 +590,7 @@ export const matchNfa = (
   matchNfaCount++
 
   if (currentNode === undefined) return { matched: true, input, index }
-  if (currentNode === null) throw new Error(NO_MATCH_MESSAGE) // return { matched: false, input, index }
+  if (currentNode === null) return { matched: false, input, index } // throw new Error(NO_MATCH_MESSAGE)
 
   const isEmptyInput = input.length === index
   const isStartOfInput = index === 0
@@ -684,7 +606,7 @@ export const matchNfa = (
           }' against node ${nodeAsString(currentNode)}`
       )
 
-      if (currentNode.escaped) {
+      if (currentNode.isLiteral) {
         if (currentChar === currentNode.character)
           // Matches character literally.
           return debug(() => 'Matched!'), matchNfa(currentNode.next, input, index + 1, currentChar)
@@ -813,7 +735,7 @@ export const matchFromNfa = (
   // Try to match the regular expression from left to right.
   for (
     let index = startingIndex;
-    index < startingIndex + (exactMatch || input.length === 0 ? 1 : input.length);
+    index < (exactMatch || input.length === 0 ? 1 : input.length);
     index++
   ) {
     const match = matchNfa(nfa, input, index, index > 0 ? input[index - 1] : '')
@@ -852,13 +774,11 @@ export const scan = (regExpAsString: string, input: string): string[] => {
   while (true) {
     const match = matchFromNfa(nfa, input, { startingIndex })
 
-    if (typeof match !== 'string') {
-      matches.push(match.match)
+    if (typeof match === 'string') break // Match unsuccessful! Stop scan.
 
-      startingIndex = match.end + 1
-    } else {
-      break // Match unsuccessful! Stop scan.
-    }
+    matches.push(match.match)
+
+    startingIndex = match.end + 1
   }
 
   return matches.flat()
@@ -901,7 +821,7 @@ assertMatches('(a+)*ab', 'aaaaaaaaaaaab', '->aaaaaaaaaaaab<-')
 assertMatches('.*.*=.*', 'x=x', '->x=x<-')
 assertMatches('a*'.repeat(100), 'a'.repeat(1000), '->' + 'a'.repeat(1000) + '<-')
 
-// More than 2 repetition levels.
+// Testing more than 2 repetition levels.
 assertMatches(
   '(((a*b)+c)?d,){2,3}',
   'd,bcd,aaabababaaabbbbbbcd,d',
@@ -909,7 +829,7 @@ assertMatches(
 )
 assertMatches('(((a*b)+c)?d,){2,3}', 'd', NO_MATCH_MESSAGE)
 
-// Anchors.
+// Testing anchors.
 assertMatches('^a+', '...aa', NO_MATCH_MESSAGE)
 assertMatches('^a+', 'aa', '->aa<-')
 assertMatches('^a+$', 'aa...', NO_MATCH_MESSAGE)
@@ -921,15 +841,8 @@ assertMatches('\b/w{4}', 'some_word   ', '->some<-_word   ')
 assertMatches('/w{4}\b', '           some_word', '           some_->word<-')
 assertMatches('\b/w\b', '               x              ', '               ->x<-              ')
 assertMatches('\b/w\b', '               xx              ', NO_MATCH_MESSAGE)
-assertEquals(
-  scan('^.', 'abc\ndef\nghi'),
-  ENABLE_JS_BEHAVIOR_FOR_CARET_AND_DOLLAR_ANCHORS ? ['a', 'd', 'g'] : ['a']
-)
-assertEquals(
-  scan('.$', 'abc\ndef\nghi'),
-  ENABLE_JS_BEHAVIOR_FOR_CARET_AND_DOLLAR_ANCHORS ? ['c', 'f', 'i'] : ['i']
-)
 
+// Testing `scan()`.
 assertEquals(
   scan(
     '/w+([.]/w+)*@/w+([.]/w+)+',
@@ -938,6 +851,18 @@ assertEquals(
   ['john.doe@gmail.com', 'john@gmail.com.us', 'jo.hn.do.e@g.mail.co.m']
 )
 assertEquals(scan('/d{2}', '01234567'), ['01', '23', '45', '67'])
+assertEquals(scan('/d', '01234567'), ['0', '1', '2', '3', '4', '5', '6', '7'])
+assertEquals(scan('.', '01234567'), ['0', '1', '2', '3', '4', '5', '6', '7'])
+assertEquals(scan('\b/w', 'regexps are really cool'), ['r', 'a', 'r', 'c'])
+assertEquals(scan('/w\b', 'regexps are really cool'), ['s', 'e', 'y', 'l'])
+assertEquals(
+  scan('^.', 'regexps\nare\nreally\ncool'),
+  ENABLE_JS_BEHAVIOR_FOR_CARET_AND_DOLLAR_ANCHORS ? ['r', 'a', 'r', 'c'] : ['r']
+)
+assertEquals(
+  scan('.$', 'regexps\nare\nreally\ncool'),
+  ENABLE_JS_BEHAVIOR_FOR_CARET_AND_DOLLAR_ANCHORS ? ['s', 'e', 'y', 'l'] : ['l']
+)
 
 log('Done!')
 
@@ -946,6 +871,3 @@ nNodeCount = 0
 cNodeCount = 0
 
 debugMode = previousDebugMode
-
-// > re.buildAndMatch('(/.+/w+ /d+/.+)+', '...xxx 123.........yyy 4.........z 5678...')
-// { match: "->...xxx 123.........<-yyy 4.........z 5678...", index: 0 }
