@@ -582,8 +582,9 @@ export const matchNfa = (
   matchNfaCount++
 
   if (currentNode === undefined) return { matched: true, input, index }
+
   if (currentNode === null)
-    return { matched: false, input, index, skipFollowingCNodeNextAltCall: true } // throw new Error(NO_MATCH_MESSAGE)
+    return { matched: false, input, index, skipFollowingCNodeNextAltCall: true }
 
   const isEmptyInput = input.length === index
   const isStartOfInput = index === 0
