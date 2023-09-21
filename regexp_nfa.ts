@@ -33,7 +33,7 @@ import {
 } from '../reactive-spreadsheet/src/parser_combinators.ts'
 
 const NO_MATCH_MESSAGE = '(sorry, no match)'
-const ENABLE_JS_BEHAVIOR_FOR_CARET_AND_DOLLAR_ANCHORS = true
+const ALLOW_CARET_AND_DOLLAR_ANCHORS_TO_MATCH_INDIVIDUAL_LINES = true
 
 //////////////////
 // Global state //
@@ -600,7 +600,7 @@ const matchNfa = (
         switch (currentNode.character) {
           case CARET: // A '^' matches the start of the input string (Ruby behavior) or the start of each individual line (JS behavior).
             if (
-              ENABLE_JS_BEHAVIOR_FOR_CARET_AND_DOLLAR_ANCHORS
+              ALLOW_CARET_AND_DOLLAR_ANCHORS_TO_MATCH_INDIVIDUAL_LINES
                 ? isStartOfInput || previousChar === '\n'
                 : isStartOfInput
             )
@@ -610,7 +610,7 @@ const matchNfa = (
 
           case DOLLAR_SIGN: // A '$' matches the end of the input string (Ruby behavior) or the end of each individual line (JS behavior).
             if (
-              ENABLE_JS_BEHAVIOR_FOR_CARET_AND_DOLLAR_ANCHORS
+              ALLOW_CARET_AND_DOLLAR_ANCHORS_TO_MATCH_INDIVIDUAL_LINES
                 ? isEmptyInput || currentChar === '\n'
                 : isEmptyInput
             )
@@ -851,11 +851,11 @@ assertEquals(scan('\b/w', 'regexps are really cool'), ['r', 'a', 'r', 'c'])
 assertEquals(scan('/w\b', 'regexps are really cool'), ['s', 'e', 'y', 'l'])
 assertEquals(
   scan('^.', 'regexps\nare\nreally\ncool'),
-  ENABLE_JS_BEHAVIOR_FOR_CARET_AND_DOLLAR_ANCHORS ? ['r', 'a', 'r', 'c'] : ['r']
+  ALLOW_CARET_AND_DOLLAR_ANCHORS_TO_MATCH_INDIVIDUAL_LINES ? ['r', 'a', 'r', 'c'] : ['r']
 )
 assertEquals(
   scan('.$', 'regexps\nare\nreally\ncool'),
-  ENABLE_JS_BEHAVIOR_FOR_CARET_AND_DOLLAR_ANCHORS ? ['s', 'e', 'y', 'l'] : ['l']
+  ALLOW_CARET_AND_DOLLAR_ANCHORS_TO_MATCH_INDIVIDUAL_LINES ? ['s', 'e', 'y', 'l'] : ['l']
 )
 assertEquals(scan('/w', 'ab+cd-efg*hijk/lmn'), [
   'a',
