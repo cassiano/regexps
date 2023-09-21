@@ -247,7 +247,7 @@ export const showRegExp = (regExpAsString: string) => print(buildRegExpAst(regEx
 
 export const times = <T>(n: number, fn: (index: number) => T): T[] => [...Array(n).keys()].map(fn)
 
-export const debug = (messageOrFalse: () => string | false): void => {
+const debug = (messageOrFalse: () => string | false): void => {
   if (debugMode) {
     const message = messageOrFalse()
 
@@ -276,32 +276,22 @@ type NNodeType = {
   next?: NodeType | null
 }
 type NodeType = NNodeType | CNodeType
-type previousNavigationPropType = 'next' | 'nextAlt'
 
 type CreateNNodeOptionsType = {
   next?: NodeType | null
-  previous?: NodeType
-  previousProp?: previousNavigationPropType
   isLiteral?: boolean
-}
-
-type CreateCNodeOptionsType = {
-  previous?: NodeType
-  previousProp?: previousNavigationPropType
 }
 
 let nNodeCount: number
 let cNodeCount: number
 
-export const createNNode = (
+const createNNode = (
   character: SingleChar,
   { next, isLiteral = false }: CreateNNodeOptionsType = {}
 ) => ({ type: 'NNode', id: nNodeCount++, character, isLiteral, next } as NNodeType)
 
-export const createCNode = (
-  next: NodeType | null | undefined,
-  nextAlt: NodeType | null | undefined
-) => ({ type: 'CNode', id: cNodeCount++, next, nextAlt } as CNodeType)
+const createCNode = (next?: NodeType | null, nextAlt?: NodeType | null) =>
+  ({ type: 'CNode', id: cNodeCount++, next, nextAlt } as CNodeType)
 
 // Maps a character class range into an array of its individual constituint characters. E.g.:
 // takes the 1st range in '[a-dxyz]' ('a-d'), and transforms it into [ "a", "b", "c", "d" ].
@@ -368,7 +358,7 @@ const cloneNode = (
   return partialClone
 }
 
-export const createNfaFromAst = (ast: RegExpType, nextNode?: NodeType | null): NodeType => {
+const createNfaFromAst = (ast: RegExpType, nextNode?: NodeType | null): NodeType => {
   let next: NodeType | null | undefined = nextNode
 
   for (let i = ast.length - 1; i >= 0; i--) {
@@ -378,7 +368,7 @@ export const createNfaFromAst = (ast: RegExpType, nextNode?: NodeType | null): N
   return next!
 }
 
-export const createNfaNodeFromRegExpToken = (
+const createNfaNodeFromRegExpToken = (
   astNode: RegExpTokenType,
   nextNode?: NodeType | null
 ): NodeType => {
@@ -573,7 +563,7 @@ type MatchNfaReturnType = {
   skipFollowingCNodeNextAltCall?: boolean
 }
 
-export const matchNfa = (
+const matchNfa = (
   currentNode: NodeType | null | undefined,
   input: string,
   index: number,
@@ -723,7 +713,7 @@ type MatchFromNfaReturnType =
     }
   | typeof NO_MATCH_MESSAGE
 
-export const matchFromNfa = (
+const matchFromNfa = (
   nfa: NodeType,
   input: string,
   {
