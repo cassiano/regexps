@@ -324,26 +324,26 @@ const nodeAsString = (node: NodeType | null | undefined) =>
 const cloneNode = (
   node: NodeType | null | undefined,
   defaultNext: NodeType | null | undefined,
-  clones: Map<NodeType, NodeType> = new Map()
+  partialClonesHistory: Map<NodeType, NodeType> = new Map()
 ): NodeType | null | undefined => {
   if (node === null || node === undefined) return node
 
   // Node already cloned?
-  if (clones.has(node)) return clones.get(node)
+  if (partialClonesHistory.has(node)) return partialClonesHistory.get(node)
 
-  let clone: NodeType
+  let partialClone: NodeType
 
   // Clone the node, delaying the creation of its `next` and `nextAlt` (in the case of a CNode) props, so the new node can be added right away
   // into the clones map.
   switch (node.type) {
     case 'NNode':
-      clone = createNNode(node.character, {
+      partialClone = createNNode(node.character, {
         isLiteral: node.isLiteral,
       })
       break
 
     case 'CNode':
-      clone = createCNode(undefined, undefined)
+      partialClone = createCNode(undefined, undefined)
       break
 
     default: {
@@ -352,17 +352,20 @@ const cloneNode = (
     }
   }
 
-  clones.set(node, clone)
+  partialClonesHistory.set(node, partialClone)
 
   // With the new clone properly saved in the `clones` map, set its `next` prop.
-  clone.next = node.next === undefined ? defaultNext : cloneNode(node.next, defaultNext, clones)
+  partialClone.next =
+    node.next === undefined ? defaultNext : cloneNode(node.next, defaultNext, partialClonesHistory)
 
   // Set its `nextAlt` prop (for CNodes).
-  if (node.type === 'CNode' && clone.type === 'CNode')
-    clone.nextAlt =
-      node.nextAlt === undefined ? defaultNext : cloneNode(node.nextAlt, defaultNext, clones)
+  if (node.type === 'CNode' && partialClone.type === 'CNode')
+    partialClone.nextAlt =
+      node.nextAlt === undefined
+        ? defaultNext
+        : cloneNode(node.nextAlt, defaultNext, partialClonesHistory)
 
-  return clone
+  return partialClone
 }
 
 export const createNfaFromAst = (ast: RegExpType, nextNode?: NodeType | null): NodeType => {
