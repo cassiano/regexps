@@ -686,9 +686,7 @@ export const matchNfa = (
           ),
           match
         )
-
-      // Notice `match.matched` is false.
-      if (!match.skipFollowingCNodeNextAltCall) {
+      else if (!match.skipFollowingCNodeNextAltCall) {
         match = matchNfa(currentNode.nextAlt, input, index, previousChar)
 
         if (match.matched)
