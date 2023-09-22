@@ -256,13 +256,17 @@ const debug = (messageOrFalse: () => string | false): void => {
 // article from Ken Thompson: https://dl.acm.org/doi/epdf/10.1145/363347.363387         //
 //////////////////////////////////////////////////////////////////////////////////////////
 
-// CNode ("Cross" Node). Splits the current search path, matching one of 2 possible choices/alternatives.
-// It always has one input path and exactly two output paths. An output path equals to `singletonEnode`
-// means an end state (i.e. a successful match).
+// CNode ("Cross" non-terminal Node). Splits the current search path, matching one of 2 possible
+// choices/alternatives. It always has one input path and exactly two output paths. An output path
+// equals to `singletonENode` means an end state (i.e. a successful match). If it equals to
+// `singletonFNode`, it means a failed state (i.e. an unsuccessful match, which does not allow
+// backtracking).
 type CNodeType = { type: 'CNode'; id: number; next: NodeType; nextAlt: NodeType }
 
-// NNode ("Normal" Node). Matches a single character. It always has one input path and exactly one output
-// path. An output path equals to `singletonEnode` means an end state (i.e. a successful match).
+// NNode ("Normal" terminal Node). Matches a single character. It always has one input path and
+// exactly one output path. An output path equals to `singletonENode` means an end state (i.e. a
+// successful match). If it equals to `singletonFNode`, it means a failed state (i.e. an
+// unsuccessful match, which does not allow backtracking).
 type NNodeType = {
   type: 'NNode'
   id: number
@@ -271,13 +275,13 @@ type NNodeType = {
   next: NodeType
 }
 
-// ENode ("End" node)
+// ENode ("End" terminal node)
 type ENodeType = {
   type: 'ENode'
   id: number
 }
 
-// FNode ("Failed match" node)
+// FNode ("Failed match" terminal node)
 type FNodeType = {
   type: 'FNode'
   id: number
