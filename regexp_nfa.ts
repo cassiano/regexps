@@ -335,7 +335,7 @@ const cloneNode = (
   partialClonesHistory: Map<NodeType, NodeType> = new Map()
 ): NodeType => {
   // Node already cloned?
-  if (partialClonesHistory.has(node)) return partialClonesHistory.get(node) as NodeType
+  if (partialClonesHistory.has(node)) return partialClonesHistory.get(node)!
 
   let partialClone: NodeType
 
@@ -376,7 +376,7 @@ const cloneNode = (
         ? defaultNext
         : cloneNode(node.nextAlt, defaultNext, partialClonesHistory)
 
-  return partialClone as NodeType
+  return partialClone
 }
 
 const createNfaFromAst = (ast: RegExpType, nextNode: NodeType): NodeType => {
