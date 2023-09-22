@@ -623,7 +623,7 @@ const matchNfa = (
       } else {
         switch (currentNode.character) {
           case CARET: // A '^' matches the start of the input string (Ruby behavior) or the start of each individual line (JS behavior).
-            if (options.jsMultilineMode ? isStartOfInput || previousChar === '\n' : isStartOfInput)
+            if (options.jsMultiline ? isStartOfInput || previousChar === '\n' : isStartOfInput)
               return (
                 debug(() => 'Matched!'),
                 matchNfa(currentNode.next, input, index, previousChar, options)
@@ -632,7 +632,7 @@ const matchNfa = (
             break
 
           case DOLLAR_SIGN: // A '$' matches the end of the input string (Ruby behavior) or the end of each individual line (JS behavior).
-            if (options.jsMultilineMode ? isEmptyInput || currentChar === '\n' : isEmptyInput)
+            if (options.jsMultiline ? isEmptyInput || currentChar === '\n' : isEmptyInput)
               return debug(() => 'Matched!'), { matched: true, input, index }
             break
 
@@ -671,7 +671,7 @@ const matchNfa = (
     }
 
     case 'CNode':
-      const methodToCall = options.greedyMode ? 'next' : 'nextAlt'
+      const methodToCall = options.greedy ? 'next' : 'nextAlt'
 
       debug(
         () =>
@@ -691,7 +691,7 @@ const matchNfa = (
           match
         )
       else if (!match.stopBacktracking) {
-        const methodToCall = options.greedyMode ? 'nextAlt' : 'next'
+        const methodToCall = options.greedy ? 'nextAlt' : 'next'
 
         match = matchNfa(currentNode[methodToCall], input, index, previousChar, options)
 
@@ -723,8 +723,8 @@ const matchNfa = (
 }
 
 type RegExpOptionsType = {
-  jsMultilineMode?: boolean
-  greedyMode?: boolean
+  jsMultiline?: boolean
+  greedy?: boolean
 }
 
 type BuildNfaFromRegExpAndMatchOptionsType = {
@@ -761,8 +761,8 @@ const matchFromNfa = (
     exactMatch = false,
     arrows = false,
     startingIndex = 0,
-    jsMultilineMode = true,
-    greedyMode = true,
+    jsMultiline = true,
+    greedy = true,
   }: BuildNfaFromRegExpAndMatchOptionsType = {}
 ): MatchFromNfaReturnType => {
   matchNfaCount = 0
@@ -774,8 +774,8 @@ const matchFromNfa = (
     index++
   ) {
     const match = matchNfa(nfa, input, index, index > 0 ? input[index - 1] : '', {
-      jsMultilineMode,
-      greedyMode,
+      jsMultiline,
+      greedy,
     })
 
     debug(() => `match: ${inspect(match)}, accumulated matchNfaCount: ${matchNfaCount}`)
@@ -897,20 +897,10 @@ assertEquals(scan('/d', '01234567'), ['0', '1', '2', '3', '4', '5', '6', '7'])
 assertEquals(scan('.', '01234567'), ['0', '1', '2', '3', '4', '5', '6', '7'])
 assertEquals(scan('\b/w', 'regexps are really cool'), ['r', 'a', 'r', 'c'])
 assertEquals(scan('/w\b', 'regexps are really cool'), ['s', 'e', 'y', 'l'])
-assertEquals(scan('^.', 'regexps\nare\nreally\ncool', { jsMultilineMode: true }), [
-  'r',
-  'a',
-  'r',
-  'c',
-])
-assertEquals(scan('^.', 'regexps\nare\nreally\ncool', { jsMultilineMode: false }), ['r'])
-assertEquals(scan('.$', 'regexps\nare\nreally\ncool', { jsMultilineMode: true }), [
-  's',
-  'e',
-  'y',
-  'l',
-])
-assertEquals(scan('.$', 'regexps\nare\nreally\ncool', { jsMultilineMode: false }), ['l'])
+assertEquals(scan('^.', 'regexps\nare\nreally\ncool', { jsMultiline: true }), ['r', 'a', 'r', 'c'])
+assertEquals(scan('^.', 'regexps\nare\nreally\ncool', { jsMultiline: false }), ['r'])
+assertEquals(scan('.$', 'regexps\nare\nreally\ncool', { jsMultiline: true }), ['s', 'e', 'y', 'l'])
+assertEquals(scan('.$', 'regexps\nare\nreally\ncool', { jsMultiline: false }), ['l'])
 assertEquals(scan('/w', 'ab+cd-efg*hijk/lmn'), [
   'a',
   'b',
