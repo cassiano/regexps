@@ -58,12 +58,8 @@ deno
 [ "r" ]
 
 
-// Showing the generated NFA.
-> const nfa = re.buildNfaFromRegExp('a*'); re.print(nfa)
-RegExp: a*
-
-AST:
-
+// Showing the generated AST (Abstract Syntax Tree).
+> const ast = re.buildRegExpAst('a*'); re.print(ast)
 [
   {
     type: "repetition",
@@ -72,28 +68,13 @@ AST:
   }
 ]
 
-NFA:
 
+// Showing the generated NFA.
+> const nfa = re.buildNfaFromRegExp('a*'); re.print(nfa)
 <ref *1> {
   type: "CNode",
   id: 0,
   next: { type: "NNode", id: 1, character: "a", isLiteral: false, next: [Circular *1] },
   nextAlt: { type: "ENode", id: 0 }
 }
-
-NFA nodes generated:
-
-nNodeCount: 2, cNodeCount: 1
-
-
-// Showing the generated AST (Abstract Syntax Tree) only.
-> const ast = re.buildRegExpAst('a*'); re.print(ast)
-RegExp: a*
-[
-  {
-    type: "repetition",
-    expr: { type: "singleChar", character: "a" },
-    limits: { min: 0, max: Infinity }
-  }
-]
 ```
