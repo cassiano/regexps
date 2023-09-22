@@ -867,11 +867,25 @@ Deno.test('Basic behavior', () => {
   assertMatches('(x+x+)+y', 'xxxxxxxxxx', NO_MATCH_MESSAGE)
   assertMatches('(a+)*ab', 'aaaaaaaaaaaab', '->aaaaaaaaaaaab<-')
   assertMatches('.*.*=.*', 'x=x', '->x=x<-')
-  assertMatches('a*'.repeat(100), 'a'.repeat(1000), '->' + 'a'.repeat(1000) + '<-')
 })
 
-Deno.test('Multi-level (> 2) repetitions', () => {
+Deno.test('Complex repetitions', () => {
   debugMode = false
+
+  // Produces complex, multi-level, repetitions, such as: "(a+)", "((a+)+)", "(((a+)+)+)" etc.
+  const repeatedAs = (n: number) => {
+    let regexp = 'a'
+
+    times(n, i => {
+      const quantifier = '+' // '*+?'[Math.trunc(Math.random() * 3)]
+      regexp = `(${regexp}${quantifier})`
+    })
+
+    return regexp
+  }
+
+  assertMatches('a*'.repeat(100), 'a'.repeat(100), '->' + 'a'.repeat(100) + '<-')
+  assertMatches(repeatedAs(20), 'a'.repeat(100), '->' + 'a'.repeat(100) + '<-')
 
   assertMatches(
     '(((a*b)+c)?d,){2,3}',
