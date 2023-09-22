@@ -1,8 +1,8 @@
-# This toy, personal project, uses Parser Combinators and an NFA (Non-deterministic Finite Automatum) to parse and evaluate regular expressions against a given string.
+# This toy, personal project, uses Parser Combinators and an NFA (Non-deterministic Finite Automatum) to parse and evaluate regular expressions against a given string. The NFA implementation is based on this article from Ken Thompson: https://dl.acm.org/doi/epdf/10.1145/363347.363387
 
-# Please install Deno (https://docs.deno.com/runtime/manual/getting_started/installation) before using it.
+## Please install Deno (https://docs.deno.com/runtime/manual/getting_started/installation) before using it.
 
-# To run tests:
+### To run tests:
 
 ```
 deno test regexp_nfa.ts
@@ -16,7 +16,7 @@ jsMultiline on x off behavior ... ok (8ms)
 greedy x lazy behavior ... ok (7ms)
 ```
 
-# To use it in the REPL:
+### To use it in the REPL:
 
 ```
 deno
