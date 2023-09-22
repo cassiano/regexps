@@ -876,16 +876,15 @@ Deno.test('Complex repetitions', () => {
   const repeatedAs = (n: number) => {
     let regexp = 'a'
 
-    times(n, i => {
-      const quantifier = '+' // '*+?'[Math.trunc(Math.random() * 3)]
-      regexp = `(${regexp}${quantifier})`
+    times(n, () => {
+      regexp = `(${regexp}+)`
     })
 
     return regexp
   }
 
   assertMatches('a*'.repeat(100), 'a'.repeat(100), '->' + 'a'.repeat(100) + '<-')
-  assertMatches(repeatedAs(20), 'a'.repeat(100), '->' + 'a'.repeat(100) + '<-')
+  assertMatches(repeatedAs(20), 'a'.repeat(1000), '->' + 'a'.repeat(1000) + '<-')
 
   assertMatches(
     '(((a*b)+c)?d,){2,3}',
