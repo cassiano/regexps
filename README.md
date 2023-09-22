@@ -21,6 +21,10 @@ greedy x lazy behavior ... ok (7ms)
 ```
 deno
 
+// Importing locally.
+> import * as re from './regexp_nfa.ts'
+
+// Or, importing directly from Github.
 > import * as re from 'https://raw.githubusercontent.com/cassiano/regexps/main/regexp_nfa.ts'
 
 
