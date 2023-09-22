@@ -231,8 +231,10 @@ declare const Deno: {
 
 export const log = console.log
 
+// deno-lint-ignore no-explicit-any
 export const inspect = (value: any) =>
   Deno.inspect(value, { depth: 999, colors: true }) as unknown as string
+// deno-lint-ignore ban-types
 export const print = (value: object) => log(inspect(value))
 
 export const showRegExp = (regExpAsString: string) => print(buildRegExpAst(regExpAsString))
@@ -663,7 +665,7 @@ const matchNfa = (
       break
     }
 
-    case 'CNode':
+    case 'CNode': {
       const methodToCall = options.greedy ? 'next' : 'nextAlt'
 
       debug(
@@ -699,6 +701,7 @@ const matchNfa = (
       }
 
       break
+    }
 
     case 'ENode':
       return { matched: true, input, index }

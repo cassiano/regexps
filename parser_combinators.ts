@@ -1,5 +1,6 @@
 import { RefType } from './spreadsheet_utils.ts'
 
+// deno-lint-ignore no-explicit-any
 type MemoizableFnType<T> = (...args: any[]) => T
 
 export const memoize = <T>(fn: MemoizableFnType<T>): MemoizableFnType<T> => {
@@ -155,6 +156,7 @@ export const andN =
   <T>(parsers: Parser<T>[]): Parser<T[]> =>
   input => {
     let rest = input
+    // deno-lint-ignore prefer-const
     let result: T[] = []
 
     for (const parser of parsers) {
@@ -178,6 +180,7 @@ export const all =
     if (parsers.length === 0) return [error('(all) no parsers specified'), input]
 
     for (const parser of parsers) {
+      // deno-lint-ignore no-extra-semi
       ;[result, rest] = parser(input)
 
       if (isError(result)) return [result, input]
@@ -756,5 +759,6 @@ declare const Deno: {
   inspect: (...args: unknown[]) => void
 }
 
+// deno-lint-ignore ban-types
 export const print = (value: object) =>
   console.log(Deno.inspect(value, { depth: 999, colors: true }))
