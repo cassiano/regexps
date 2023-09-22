@@ -213,9 +213,6 @@ const replaceCharacterClassAbbreviations = (regExpAsString: string): string => {
   return regExpAsString
 }
 
-// const replaceEscapedChars = (regExpAsString: string): string =>
-//   regExpAsString.replaceAll(/[/\\](.)/g, '[$1]')
-
 export const buildRegExpAst = (regExpAsString: string): RegExpType => {
   const [result, rest] = regExp(
     // replaceEscapedChars(replaceCharacterClassAbbreviations(regExpAsString))
