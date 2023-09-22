@@ -629,7 +629,7 @@ const matchNfa = (
           )
       } else {
         switch (currentNode.character) {
-          case CARET: // A '^' matches the start of the input string (Ruby behavior) or the start of each individual line (JS behavior).
+          case CARET: // A '^' matches the start of the input string or of each individual line.
             if (options.jsMultiline ? isStartOfInput || previousChar === '\n' : isStartOfInput)
               return (
                 debug(() => 'Matched!'),
@@ -638,7 +638,7 @@ const matchNfa = (
 
             break
 
-          case DOLLAR_SIGN: // A '$' matches the end of the input string (Ruby behavior) or the end of each individual line (JS behavior).
+          case DOLLAR_SIGN: // A '$' matches the end of the input string or of each individual line.
             if (options.jsMultiline ? isEmptyInput || currentChar === '\n' : isEmptyInput)
               return debug(() => 'Matched!'), { matched: true, input, index }
             break
