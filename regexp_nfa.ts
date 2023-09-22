@@ -391,6 +391,139 @@ const createNfaFromAst = (ast: RegExpType, nextNode: NodeType): NodeType => {
   return next
 }
 
+const createNfaNodeFromCharacterClassRegExpToken = (
+  astNode: CharacterClassType,
+  nextNode: NodeType
+): NodeType => {
+  const options = mapCharacterClassOptions(astNode.options)
+  let lastNode: NodeType = createNNode(options.at(-1)!, nextNode, true)
+
+  if (astNode.negated) {
+    const periodNode = createNNode(PERIOD, nextNode, false) // All but "\n"
+    const newLineNode = createNNode(NEW_LINE, nextNode, true) // Only "\n"
+    const catchAllNode = createCNode(periodNode, newLineNode)
+
+    lastNode.next = singletonFnode // FNode means "no match!".
+    lastNode = createCNode(lastNode, catchAllNode)
+    nextNode = singletonFnode
+  }
+
+  let accNode: NodeType = lastNode
+
+  for (let i = options.length - 2; i >= 0; i--) {
+    const node = createNNode(options[i], nextNode, true)
+
+    accNode = createCNode(node, accNode)
+  }
+
+  return accNode
+}
+
+const createNfaNodeFromRepetitionRegExpToken = (
+  astNode: RepetitionType,
+  nextNode: NodeType
+): NodeType => {
+  // Notice below that:
+  //
+  // ▬▶[a] or ▬▶[†]: initial states
+  // [b]▬▶ or ◀▬[b]: end states
+  // - [a], [b]: NNodes or CNodes
+  // - [†]: CNode only
+  // - m, n: natural numbers
+  //
+  // Possible cases:
+  //
+  // -------------------------------------------------------------------
+  //
+  // a+b ≅ a{1,}b ≅ a{1,∞}b: ▬▶[a] ⮂ [†]
+  //                                   ↓
+  //                                  [b]▬▶
+  //
+  // -------------------------------------------------------------------
+  //
+  // a*b ≅ a{0,}b ≅ a{0,∞}b: ▬▶[†] ⮂ [a]
+  //                            ↓
+  //                           [b]▬▶
+  //
+  // -------------------------------------------------------------------
+  //
+  // a?b ≅ a{0,1}b: ▬▶[†] ⭢ [a]
+  //                    ↓  ↙
+  //                    [b]▬▶
+  //
+  // -------------------------------------------------------------------
+  //
+  // a{m}b ≅ a{m,m}b: ▬▶[a] ⭢ [a] ⭢ [a] ⭢ … [a] ⭢ [b]▬▶
+  //                     ▙▃▃▃▃▃ (m times) ▃▃▃▃▃▟
+  //
+  // -------------------------------------------------------------------
+  //
+  // a{m,}b ≅ a{m,∞}b ≅ ▬▶[a] ⭢ [a] ⭢ [a] ⭢ … [a] ⮂ [†]
+  //                       ▙▃▃▃▃▃ (m times) ▃▃▃▃▃▟      ↓
+  //                                                   [b]▬▶
+  //
+  // -------------------------------------------------------------------
+  //
+  // a{,n}b ≅ a{0,n}b ≅ ▬▶[†] ⭢ [a]   ▜
+  //                       ↓      ↓    ▐
+  //                    ◀▬[b] ⭠ [†]   ▐
+  //                       ⭡     ↓    ▐
+  //                       │     [a]   ▐
+  //                       │      ↓    ▐
+  //                       ├──── [†]   ▐
+  //                       │      ↓   (n times)
+  //                       │     [a]   ▐
+  //                       │      ↓    ▐
+  //                       ├──── [†]   ▐
+  //                       │      ↓    ▐
+  //                       │      …    ▐
+  //                       └──── [a]   ▟
+  //
+  // -------------------------------------------------------------------
+  //
+  // a{m,n}b ≅ ▬▶[a] ⭢ [a] ⭢ [a] ⭢ … [a] ⭢ [†] ⭢ [a]   ▜
+  //              ▙▃▃▃▃▃ (m times) ▃▃▃▃▃▟      ↓      ↓    ▐
+  //                                        ◀▬[b] ⭠ [†]   ▐
+  //                                           ⭡     ↓    ▐
+  //                                           │     [a]   ▐
+  //                                           │      ↓    ▐
+  //                                           ├──── [†]   ▐
+  //                                           │      ↓   (n-m times)
+  //                                           │     [a]   ▐
+  //                                           │      ↓    ▐
+  //                                           ├──── [†]   ▐
+  //                                           │      ↓    ▐
+  //                                           │      …    ▐
+  //                                           └──── [a]   ▟
+
+  const limits = astNode.limits
+  const repeatingNode = createNfaNodeFromRegExpToken(astNode.expr, singletonEnode)
+
+  let rightNodeNext: NodeType = nextNode
+  let rightCNode: NodeType = nextNode
+
+  if (limits.max !== Infinity) {
+    times(limits.max - limits.min, () => {
+      rightCNode = createCNode(cloneNode(repeatingNode, rightNodeNext), nextNode)
+      rightNodeNext = rightCNode
+    })
+  } // limits.max === Infinity
+  else {
+    // Notice the temporary use of `singletonFnode` below as the `next` prop, since it will be replaced
+    // right after creating the CNode.
+    rightCNode = createCNode(singletonFnode, nextNode)
+    rightCNode.next = cloneNode(repeatingNode, rightCNode)
+  }
+
+  let leftClonedNodeNext: NodeType = rightCNode
+
+  times(limits.min, () => {
+    leftClonedNodeNext = cloneNode(repeatingNode, leftClonedNodeNext)
+  })
+
+  return leftClonedNodeNext!
+}
+
 const createNfaNodeFromRegExpToken = (astNode: RegExpTokenType, nextNode: NodeType): NodeType => {
   switch (astNode.type) {
     case 'singleChar':
@@ -405,132 +538,11 @@ const createNfaNodeFromRegExpToken = (astNode: RegExpTokenType, nextNode: NodeTy
     case 'parenthesized':
       return createNfaFromAst(astNode.expr, nextNode)
 
-    case 'characterClass': {
-      const options = mapCharacterClassOptions(astNode.options)
-      let lastNode: NodeType = createNNode(options.at(-1)!, nextNode, true)
+    case 'characterClass':
+      return createNfaNodeFromCharacterClassRegExpToken(astNode, nextNode)
 
-      if (astNode.negated) {
-        const periodNode = createNNode(PERIOD, nextNode, false) // All but "\n"
-        const newLineNode = createNNode(NEW_LINE, nextNode, true) // Only "\n"
-        const catchAllNode = createCNode(periodNode, newLineNode)
-
-        lastNode.next = singletonFnode // FNode means "no match!".
-        lastNode = createCNode(lastNode, catchAllNode)
-        nextNode = singletonFnode
-      }
-
-      let accNode: NodeType = lastNode
-
-      for (let i = options.length - 2; i >= 0; i--) {
-        const node = createNNode(options[i], nextNode, true)
-
-        accNode = createCNode(node, accNode)
-      }
-
-      return accNode
-    }
-
-    case 'repetition': {
-      // Notice below that:
-      //
-      // ▬▶[a] or ▬▶[†]: initial states
-      // [b]▬▶ or ◀▬[b]: end states
-      // - [a], [b]: NNodes or CNodes
-      // - [†]: CNode only
-      // - m, n: natural numbers
-      //
-      // Possible cases:
-      //
-      // -------------------------------------------------------------------
-      //
-      // a+b ≅ a{1,}b ≅ a{1,∞}b: ▬▶[a] ⮂ [†]
-      //                                   ↓
-      //                                  [b]▬▶
-      //
-      // -------------------------------------------------------------------
-      //
-      // a*b ≅ a{0,}b ≅ a{0,∞}b: ▬▶[†] ⮂ [a]
-      //                            ↓
-      //                           [b]▬▶
-      //
-      // -------------------------------------------------------------------
-      //
-      // a?b ≅ a{0,1}b: ▬▶[†] ⭢ [a]
-      //                    ↓  ↙
-      //                    [b]▬▶
-      //
-      // -------------------------------------------------------------------
-      //
-      // a{m}b ≅ a{m,m}b: ▬▶[a] ⭢ [a] ⭢ [a] ⭢ … [a] ⭢ [b]▬▶
-      //                     ▙▃▃▃▃▃ (m times) ▃▃▃▃▃▟
-      //
-      // -------------------------------------------------------------------
-      //
-      // a{m,}b ≅ a{m,∞}b ≅ ▬▶[a] ⭢ [a] ⭢ [a] ⭢ … [a] ⮂ [†]
-      //                       ▙▃▃▃▃▃ (m times) ▃▃▃▃▃▟      ↓
-      //                                                   [b]▬▶
-      //
-      // -------------------------------------------------------------------
-      //
-      // a{,n}b ≅ a{0,n}b ≅ ▬▶[†] ⭢ [a]   ▜
-      //                       ↓      ↓    ▐
-      //                    ◀▬[b] ⭠ [†]   ▐
-      //                       ⭡     ↓    ▐
-      //                       │     [a]   ▐
-      //                       │      ↓    ▐
-      //                       ├──── [†]   ▐
-      //                       │      ↓   (n times)
-      //                       │     [a]   ▐
-      //                       │      ↓    ▐
-      //                       ├──── [†]   ▐
-      //                       │      ↓    ▐
-      //                       │      …    ▐
-      //                       └──── [a]   ▟
-      //
-      // -------------------------------------------------------------------
-      //
-      // a{m,n}b ≅ ▬▶[a] ⭢ [a] ⭢ [a] ⭢ … [a] ⭢ [†] ⭢ [a]   ▜
-      //              ▙▃▃▃▃▃ (m times) ▃▃▃▃▃▟      ↓      ↓    ▐
-      //                                        ◀▬[b] ⭠ [†]   ▐
-      //                                           ⭡     ↓    ▐
-      //                                           │     [a]   ▐
-      //                                           │      ↓    ▐
-      //                                           ├──── [†]   ▐
-      //                                           │      ↓   (n-m times)
-      //                                           │     [a]   ▐
-      //                                           │      ↓    ▐
-      //                                           ├──── [†]   ▐
-      //                                           │      ↓    ▐
-      //                                           │      …    ▐
-      //                                           └──── [a]   ▟
-
-      const limits = astNode.limits
-      const repeatingNode = createNfaNodeFromRegExpToken(astNode.expr, singletonEnode)
-
-      let rightNodeNext: NodeType = nextNode
-      let rightCNode: NodeType = nextNode
-
-      if (limits.max !== Infinity) {
-        times(limits.max - limits.min, () => {
-          rightCNode = createCNode(cloneNode(repeatingNode, rightNodeNext), nextNode)
-          rightNodeNext = rightCNode
-        })
-      } // limits.max === Infinity
-      else {
-        // Notice the temporary use of `singletonFnode` below as the `next` prop, since it will be replaced
-        // right after creating the CNode.
-        rightCNode = createCNode(singletonFnode, nextNode)
-        rightCNode.next = cloneNode(repeatingNode, rightCNode)
-      }
-
-      let leftClonedNodeNext: NodeType = rightCNode
-
-      times(limits.min, () => {
-        leftClonedNodeNext = cloneNode(repeatingNode, leftClonedNodeNext)
-      })
-
-      return leftClonedNodeNext!
-    }
+    case 'repetition':
+      return createNfaNodeFromRepetitionRegExpToken(astNode, nextNode)
 
     default: {
       const exhaustiveCheck: never = astNode
