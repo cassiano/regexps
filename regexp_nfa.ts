@@ -289,16 +289,6 @@ type FNodeType = {
 
 type NodeType = NNodeType | CNodeType | ENodeType | FNodeType
 
-const singletonEnode: ENodeType = {
-  type: 'ENode',
-  id: 0,
-}
-
-const singletonFnode: FNodeType = {
-  type: 'FNode',
-  id: 0,
-}
-
 let nNodeCount = 0
 let cNodeCount = 0
 
@@ -316,6 +306,16 @@ const createCNode = (next: NodeType, nextAlt: NodeType): CNodeType => ({
   next,
   nextAlt,
 })
+
+const singletonENode: ENodeType = {
+  type: 'ENode',
+  id: 0,
+}
+
+const singletonFNode: FNodeType = {
+  type: 'FNode',
+  id: 0,
+}
 
 // Maps a character class range into an array of its individual constituint characters. E.g.: takes
 // the 1st range in '[a-dxyz]' ('a-d'), and transforms it into [ "a", "b", "c", "d" ].
@@ -350,11 +350,11 @@ const cloneNode = (
   // temporarily use `singletonFnode` in place of the actual (yet to be cloned) nodes.
   switch (node.type) {
     case 'NNode':
-      partialClone = createNNode(node.character, singletonFnode, node.isLiteral)
+      partialClone = createNNode(node.character, singletonFNode, node.isLiteral)
       break
 
     case 'CNode':
-      partialClone = createCNode(singletonFnode, singletonFnode)
+      partialClone = createCNode(singletonFNode, singletonFNode)
       break
 
     case 'ENode':
@@ -371,14 +371,14 @@ const cloneNode = (
 
   // With the new clone properly saved in the `clones` map, set its `next` prop.
   partialClone.next =
-    node.next === singletonEnode
+    node.next === singletonENode
       ? defaultNext
       : cloneNode(node.next, defaultNext, partialClonesHistory)
 
   // Set its `nextAlt` prop (for CNodes).
   if (node.type === 'CNode' && partialClone.type === 'CNode')
     partialClone.nextAlt =
-      node.nextAlt === singletonEnode
+      node.nextAlt === singletonENode
         ? defaultNext
         : cloneNode(node.nextAlt, defaultNext, partialClonesHistory)
 
@@ -407,9 +407,9 @@ const createNfaNodeFromCharacterClassRegExpToken = (
     const newLineNode = createNNode(NEW_LINE, nextNode, true) // Only "\n"
     const catchAllNode = createCNode(periodNode, newLineNode)
 
-    lastNode.next = singletonFnode // FNode means "no match!".
+    lastNode.next = singletonFNode // FNode means "no match!".
     lastNode = createCNode(lastNode, catchAllNode)
-    nextNode = singletonFnode
+    nextNode = singletonFNode
   }
 
   let accNode: NodeType = lastNode
@@ -501,7 +501,7 @@ const createNfaNodeFromRepetitionRegExpToken = (
   //                                           └──── [a]   ▟
 
   const limits = astNode.limits
-  const repeatingNode = createNfaNodeFromRegExpToken(astNode.expr, singletonEnode)
+  const repeatingNode = createNfaNodeFromRegExpToken(astNode.expr, singletonENode)
 
   let rightNodeNext: NodeType = nextNode
   let rightCNode: NodeType = nextNode
@@ -515,7 +515,7 @@ const createNfaNodeFromRepetitionRegExpToken = (
   else {
     // Notice the temporary use of `singletonFnode` below as the `next` prop, since it will be replaced
     // right after creating the CNode.
-    rightCNode = createCNode(singletonFnode, nextNode)
+    rightCNode = createCNode(singletonFNode, nextNode)
     rightCNode.next = cloneNode(repeatingNode, rightCNode)
   }
 
@@ -566,7 +566,7 @@ export const buildNfaFromRegExp = (
 
   debug(() => printNodes && `\nAST: \n\n${inspect(ast)}`)
 
-  const nfa = createNfaFromAst(ast, singletonEnode)
+  const nfa = createNfaFromAst(ast, singletonENode)
 
   debug(() => printNodes && `\nNFA: \n\n${inspect(nfa)}`)
 
