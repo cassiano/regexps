@@ -33,7 +33,6 @@ import {
 } from '../reactive-spreadsheet/src/parser_combinators.ts'
 
 const NO_MATCH_MESSAGE = '(sorry, no match)'
-const ALLOW_CARET_AND_DOLLAR_ANCHORS_TO_MATCH_INDIVIDUAL_LINES = true
 
 //////////////////
 // Global state //
@@ -523,8 +522,8 @@ const createNfaNodeFromRegExpToken = (astNode: RegExpTokenType, nextNode: NodeTy
         })
       } // limits.max === Infinity
       else {
-        // Notice that the use of `singletonFnode` below as the `next` prop is only temporary, since it
-        // will be replaced right after creating the CNode.
+        // Notice the temporary use of `singletonFnode` below as the `next` prop, since it will be replaced
+        // right after creating the CNode.
         rightCNode = createCNode(singletonFnode, nextNode)
         rightCNode.next = cloneNode(repeatingNode, rightCNode)
       }
@@ -588,14 +587,15 @@ type MatchNfaReturnType = {
   matched: boolean
   input: string
   index: number
-  skipFollowingCNodeNextAltCall?: boolean
+  stopBacktracking?: boolean
 }
 
 const matchNfa = (
   currentNode: NodeType,
   input: string,
   index: number,
-  previousChar: SingleChar
+  previousChar: SingleChar,
+  options: RegExpOptionsType
 ): MatchNfaReturnType => {
   matchNfaCount++
 
@@ -616,32 +616,31 @@ const matchNfa = (
       if (currentNode.isLiteral) {
         if (currentChar === currentNode.character)
           // Matches character literally.
-          return debug(() => 'Matched!'), matchNfa(currentNode.next, input, index + 1, currentChar)
+          return (
+            debug(() => 'Matched!'),
+            matchNfa(currentNode.next, input, index + 1, currentChar, options)
+          )
       } else {
         switch (currentNode.character) {
           case CARET: // A '^' matches the start of the input string (Ruby behavior) or the start of each individual line (JS behavior).
-            if (
-              ALLOW_CARET_AND_DOLLAR_ANCHORS_TO_MATCH_INDIVIDUAL_LINES
-                ? isStartOfInput || previousChar === '\n'
-                : isStartOfInput
-            )
-              return debug(() => 'Matched!'), matchNfa(currentNode.next, input, index, previousChar)
+            if (options.jsMultilineMode ? isStartOfInput || previousChar === '\n' : isStartOfInput)
+              return (
+                debug(() => 'Matched!'),
+                matchNfa(currentNode.next, input, index, previousChar, options)
+              )
 
             break
 
           case DOLLAR_SIGN: // A '$' matches the end of the input string (Ruby behavior) or the end of each individual line (JS behavior).
-            if (
-              ALLOW_CARET_AND_DOLLAR_ANCHORS_TO_MATCH_INDIVIDUAL_LINES
-                ? isEmptyInput || currentChar === '\n'
-                : isEmptyInput
-            )
+            if (options.jsMultilineMode ? isEmptyInput || currentChar === '\n' : isEmptyInput)
               return debug(() => 'Matched!'), { matched: true, input, index }
             break
 
           case PERIOD: // A '.' matches anything but the new line (\n).
             if (currentChar !== NEW_LINE && !isEmptyInput)
               return (
-                debug(() => 'Matched!'), matchNfa(currentNode.next, input, index + 1, currentChar)
+                debug(() => 'Matched!'),
+                matchNfa(currentNode.next, input, index + 1, currentChar, options)
               )
             break
 
@@ -652,14 +651,18 @@ const matchNfa = (
               (isEmptyInput && isWordChar(previousChar)) ||
               (!isWordChar(currentChar) && isWordChar(previousChar))
             )
-              return debug(() => 'Matched!'), matchNfa(currentNode.next, input, index, previousChar)
+              return (
+                debug(() => 'Matched!'),
+                matchNfa(currentNode.next, input, index, previousChar, options)
+              )
 
             break
 
           default: // Matches character literally.
             if (currentChar === currentNode.character)
               return (
-                debug(() => 'Matched!'), matchNfa(currentNode.next, input, index + 1, currentChar)
+                debug(() => 'Matched!'),
+                matchNfa(currentNode.next, input, index + 1, currentChar, options)
               )
         }
       }
@@ -668,6 +671,8 @@ const matchNfa = (
     }
 
     case 'CNode':
+      const methodToCall = options.greedyMode ? 'next' : 'nextAlt'
+
       debug(
         () =>
           `[input: '${input}', index: ${index}, previousChar: '${previousChar}'] Trying to match against node ${nodeAsString(
@@ -675,24 +680,26 @@ const matchNfa = (
           )}`
       )
 
-      let match = matchNfa(currentNode.next, input, index, previousChar)
+      let match = matchNfa(currentNode[methodToCall], input, index, previousChar, options)
 
       if (match.matched)
         return (
           debug(
             () =>
-              `[input: '${input}', index: ${index}] Passed CNode #${currentNode.id}'s next path!`
+              `[input: '${input}', index: ${index}] Passed CNode #${currentNode.id}'s ${methodToCall} path!`
           ),
           match
         )
-      else if (!match.skipFollowingCNodeNextAltCall) {
-        match = matchNfa(currentNode.nextAlt, input, index, previousChar)
+      else if (!match.stopBacktracking) {
+        const methodToCall = options.greedyMode ? 'nextAlt' : 'next'
+
+        match = matchNfa(currentNode[methodToCall], input, index, previousChar, options)
 
         if (match.matched)
           return (
             debug(
               () =>
-                `[input: '${input}', index: ${index}] Passed CNode #${currentNode.id}'s nextAlt path!`
+                `[input: '${input}', index: ${index}] Passed CNode #${currentNode.id}'s ${methodToCall} path!`
             ),
             match
           )
@@ -704,7 +711,7 @@ const matchNfa = (
       return { matched: true, input, index }
 
     case 'FNode':
-      return { matched: false, input, index, skipFollowingCNodeNextAltCall: true }
+      return { matched: false, input, index, stopBacktracking: true }
 
     default: {
       const exhaustiveCheck: never = currentNode
@@ -715,12 +722,17 @@ const matchNfa = (
   return { matched: false, input, index }
 }
 
+type RegExpOptionsType = {
+  jsMultilineMode?: boolean
+  greedyMode?: boolean
+}
+
 type BuildNfaFromRegExpAndMatchOptionsType = {
   exactMatch?: boolean
   printNodes?: boolean
   arrows?: boolean
   startingIndex?: number
-}
+} & RegExpOptionsType
 
 export const buildNfaFromRegExpAndMatch = (
   regExpAsString: string,
@@ -749,6 +761,8 @@ const matchFromNfa = (
     exactMatch = false,
     arrows = false,
     startingIndex = 0,
+    jsMultilineMode = true,
+    greedyMode = true,
   }: BuildNfaFromRegExpAndMatchOptionsType = {}
 ): MatchFromNfaReturnType => {
   matchNfaCount = 0
@@ -759,7 +773,10 @@ const matchFromNfa = (
     index < (exactMatch || input.length === 0 ? 1 : input.length);
     index++
   ) {
-    const match = matchNfa(nfa, input, index, index > 0 ? input[index - 1] : '')
+    const match = matchNfa(nfa, input, index, index > 0 ? input[index - 1] : '', {
+      jsMultilineMode,
+      greedyMode,
+    })
 
     debug(() => `match: ${inspect(match)}, accumulated matchNfaCount: ${matchNfaCount}`)
 
@@ -785,7 +802,11 @@ const matchFromNfa = (
   return NO_MATCH_MESSAGE
 }
 
-export const scan = (regExpAsString: string, input: string): string[] => {
+export const scan = (
+  regExpAsString: string,
+  input: string,
+  options: RegExpOptionsType = {}
+): string[] => {
   let startingIndex = 0
 
   const matches = []
@@ -793,7 +814,7 @@ export const scan = (regExpAsString: string, input: string): string[] => {
   const nfa = buildNfaFromRegExp(regExpAsString)
 
   while (true) {
-    const match = matchFromNfa(nfa, input, { startingIndex })
+    const match = matchFromNfa(nfa, input, { startingIndex, ...options })
 
     if (typeof match === 'string') break // Match unsuccessful! Stop scan.
 
@@ -876,14 +897,20 @@ assertEquals(scan('/d', '01234567'), ['0', '1', '2', '3', '4', '5', '6', '7'])
 assertEquals(scan('.', '01234567'), ['0', '1', '2', '3', '4', '5', '6', '7'])
 assertEquals(scan('\b/w', 'regexps are really cool'), ['r', 'a', 'r', 'c'])
 assertEquals(scan('/w\b', 'regexps are really cool'), ['s', 'e', 'y', 'l'])
-assertEquals(
-  scan('^.', 'regexps\nare\nreally\ncool'),
-  ALLOW_CARET_AND_DOLLAR_ANCHORS_TO_MATCH_INDIVIDUAL_LINES ? ['r', 'a', 'r', 'c'] : ['r']
-)
-assertEquals(
-  scan('.$', 'regexps\nare\nreally\ncool'),
-  ALLOW_CARET_AND_DOLLAR_ANCHORS_TO_MATCH_INDIVIDUAL_LINES ? ['s', 'e', 'y', 'l'] : ['l']
-)
+assertEquals(scan('^.', 'regexps\nare\nreally\ncool', { jsMultilineMode: true }), [
+  'r',
+  'a',
+  'r',
+  'c',
+])
+assertEquals(scan('^.', 'regexps\nare\nreally\ncool', { jsMultilineMode: false }), ['r'])
+assertEquals(scan('.$', 'regexps\nare\nreally\ncool', { jsMultilineMode: true }), [
+  's',
+  'e',
+  'y',
+  'l',
+])
+assertEquals(scan('.$', 'regexps\nare\nreally\ncool', { jsMultilineMode: false }), ['l'])
 assertEquals(scan('/w', 'ab+cd-efg*hijk/lmn'), [
   'a',
   'b',
