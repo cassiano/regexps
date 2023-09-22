@@ -1,4 +1,4 @@
-import { RefType } from './spreadsheet_utils.ts'
+type RefType = string
 
 // deno-lint-ignore no-explicit-any
 type MemoizableFnType<T> = (...args: any[]) => T
