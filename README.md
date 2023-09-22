@@ -48,12 +48,12 @@ deno
 [ "12", "34", "56", "78", "90" ]
 
 
-// Scanning a string using default (JavaScript's like) multiline behavior.
+// Scanning a string using default multiline behavior, similar to how it works in Ruby.
 > re.scan('^.', 'regexps\nare\nreally\ncool', { jsMultiline: true })
 [ "r", "a", "r", "c" ]
 
 
-// Scanning a string using alternative (JavaScript's like) singleline behavior.
+// Scanning a string using alternative singleline behavior, similar to how it works in JavaScript.
 > re.scan('^.', 'regexps\nare\nreally\ncool', { jsMultiline: false })
 [ "r" ]
 
