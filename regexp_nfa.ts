@@ -214,12 +214,8 @@ const replaceCharacterClassAbbreviations = (regExpAsString: string): string => {
 }
 
 const buildRegExpAst = (regExpAsString: string): RegExpType => {
-  const [result, rest] = regExp(
-    // replaceEscapedChars(replaceCharacterClassAbbreviations(regExpAsString))
-    replaceCharacterClassAbbreviations(regExpAsString)
-  )
+  const [result, rest] = regExp(replaceCharacterClassAbbreviations(regExpAsString))
 
-  // debug(() => `RegExp: ${replaceEscapedChars(replaceCharacterClassAbbreviations(regExpAsString))}`)
   debug(() => `RegExp: ${replaceCharacterClassAbbreviations(regExpAsString)}`)
 
   if (isError(result) || rest !== EMPTY_STRING) throw new Error('Invalid regular expression')
