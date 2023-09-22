@@ -1,5 +1,4 @@
-import { assertEquals } from 'https://deno.land/std@0.201.0/testing/asserts.ts'
-
+import { assertEquals } from 'https://deno.land/std/testing/asserts.ts'
 import {
   Parser,
   and,
@@ -30,7 +29,7 @@ import {
   precededBy,
   memoize,
   allButChar,
-} from '../reactive-spreadsheet/src/parser_combinators.ts'
+} from './parser_combinators.ts'
 
 const NO_MATCH_MESSAGE = '(sorry, no match)'
 
@@ -233,6 +232,7 @@ export const buildRegExpAst = (regExpAsString: string): RegExpType => {
 
 declare const Deno: {
   inspect: (...args: unknown[]) => void
+  test: (title: string, testFn: () => void) => void
   stdin: { read: (...args: unknown[]) => void }
 }
 
@@ -300,8 +300,8 @@ const singletonFnode: FNodeType = {
   id: 0,
 }
 
-let nNodeCount: number
-let cNodeCount: number
+let nNodeCount = 0
+let cNodeCount = 0
 
 const createNNode = (character: SingleChar, next: NodeType, isLiteral: boolean): NNodeType => ({
   type: 'NNode',
@@ -834,95 +834,117 @@ const assertMatches = (
   regExpAsString: string,
   input: string,
   matchedResult: string,
-  exactMatch = false
+  options: BuildNfaFromRegExpAndMatchOptionsType = {}
 ) => {
-  const match = buildNfaFromRegExpAndMatch(regExpAsString, input, { exactMatch, arrows: true })
+  const match = buildNfaFromRegExpAndMatch(regExpAsString, input, { ...options, arrows: true })
 
   assertEquals(typeof match === 'string' ? match : match.match, matchedResult)
 }
 
-const previousDebugMode = debugMode
-debugMode = false
+Deno.test('Basic behavior', () => {
+  debugMode = false
 
-log('Running tests...')
+  assertMatches('an+', 'banana', 'b->an<-ana')
+  assertMatches('(an)+', 'banana', 'b->anan<-a')
+  assertMatches('iss', 'mississipi', 'm->iss<-issipi')
+  assertMatches('(iss)+', 'mississipi', 'm->ississ<-ipi')
+  assertMatches('is+', 'mississipi', 'm->iss<-issipi')
+  assertMatches('(is+)+', 'mississipi', 'm->ississ<-ipi')
+  assertMatches('/d{2}/D/d{2}/s*([ap]m)', '12:50 am', '->12:50 am<-')
+  assertMatches('a*', '...aa', '-><-...aa')
+  assertMatches('a*', 'aa', '->aa<-')
+  assertMatches('a+', '...aa', '...->aa<-')
+  assertMatches('a+$', '..aa', '..->aa<-')
+  assertMatches('(x+x+)+y', 'xxxxxxxxxxy', '->xxxxxxxxxxy<-')
+  assertMatches('(x+x+)+y', 'xxxxxxxxxx', NO_MATCH_MESSAGE)
+  assertMatches('(a+)*ab', 'aaaaaaaaaaaab', '->aaaaaaaaaaaab<-')
+  assertMatches('.*.*=.*', 'x=x', '->x=x<-')
+  assertMatches('a*'.repeat(100), 'a'.repeat(1000), '->' + 'a'.repeat(1000) + '<-')
+})
 
-assertMatches('an+', 'banana', 'b->an<-ana')
-assertMatches('(an)+', 'banana', 'b->anan<-a')
-assertMatches('iss', 'mississipi', 'm->iss<-issipi')
-assertMatches('(iss)+', 'mississipi', 'm->ississ<-ipi')
-assertMatches('is+', 'mississipi', 'm->iss<-issipi')
-assertMatches('(is+)+', 'mississipi', 'm->ississ<-ipi')
-assertMatches('/d{2}/D/d{2}/s*([ap]m)', '12:50 am', '->12:50 am<-')
-assertMatches('a*', '...aa', '-><-...aa')
-assertMatches('a*', 'aa', '->aa<-')
-assertMatches('a+', '...aa', '...->aa<-')
-assertMatches('a+$', '..aa', '..->aa<-')
-assertMatches('(x+x+)+y', 'xxxxxxxxxxy', '->xxxxxxxxxxy<-')
-assertMatches('(x+x+)+y', 'xxxxxxxxxx', NO_MATCH_MESSAGE)
-assertMatches('(a+)*ab', 'aaaaaaaaaaaab', '->aaaaaaaaaaaab<-')
-assertMatches('.*.*=.*', 'x=x', '->x=x<-')
-assertMatches('a*'.repeat(100), 'a'.repeat(1000), '->' + 'a'.repeat(1000) + '<-')
+Deno.test('Multi-level (> 2) repetitions', () => {
+  debugMode = false
 
-// Testing more than 2 repetition levels.
-assertMatches(
-  '(((a*b)+c)?d,){2,3}',
-  'd,bcd,aaabababaaabbbbbbcd,d',
-  '->d,bcd,aaabababaaabbbbbbcd,<-d'
-)
-assertMatches('(((a*b)+c)?d,){2,3}', 'd', NO_MATCH_MESSAGE)
+  assertMatches(
+    '(((a*b)+c)?d,){2,3}',
+    'd,bcd,aaabababaaabbbbbbcd,d',
+    '->d,bcd,aaabababaaabbbbbbcd,<-d'
+  )
+  assertMatches('(((a*b)+c)?d,){2,3}', 'd', NO_MATCH_MESSAGE)
+})
 
-// Testing anchors.
-assertMatches('^a+', '...aa', NO_MATCH_MESSAGE)
-assertMatches('^a+', 'aa', '->aa<-')
-assertMatches('^a+$', 'aa...', NO_MATCH_MESSAGE)
-assertMatches('^a+$', 'aa', '->aa<-')
-assertMatches('\b', 'some_word', '-><-some_word')
-assertMatches('\b/w{4}', '           some_word   ', '           ->some<-_word   ')
-assertMatches('/w{4}\b', '           some_word   ', '           some_->word<-   ')
-assertMatches('\b/w{4}', 'some_word   ', '->some<-_word   ')
-assertMatches('/w{4}\b', '           some_word', '           some_->word<-')
-assertMatches('\b/w\b', '               x              ', '               ->x<-              ')
-assertMatches('\b/w\b', '               xx              ', NO_MATCH_MESSAGE)
+Deno.test('Anchors', () => {
+  debugMode = false
 
-// Testing `scan()`.
-assertEquals(
-  scan(
-    '/w+([.]/w+)*@/w+([.]/w+)+',
-    '| john.doe@gmail.com | john@gmail.com.us | john.doe@ | @gmail.com | john@gmail | jo.hn.do.e@g.mail.co.m |'
-  ),
-  ['john.doe@gmail.com', 'john@gmail.com.us', 'jo.hn.do.e@g.mail.co.m']
-)
-assertEquals(scan('/d{2}', '01234567'), ['01', '23', '45', '67'])
-assertEquals(scan('/d', '01234567'), ['0', '1', '2', '3', '4', '5', '6', '7'])
-assertEquals(scan('.', '01234567'), ['0', '1', '2', '3', '4', '5', '6', '7'])
-assertEquals(scan('\b/w', 'regexps are really cool'), ['r', 'a', 'r', 'c'])
-assertEquals(scan('/w\b', 'regexps are really cool'), ['s', 'e', 'y', 'l'])
-assertEquals(scan('^.', 'regexps\nare\nreally\ncool', { jsMultiline: true }), ['r', 'a', 'r', 'c'])
-assertEquals(scan('^.', 'regexps\nare\nreally\ncool', { jsMultiline: false }), ['r'])
-assertEquals(scan('.$', 'regexps\nare\nreally\ncool', { jsMultiline: true }), ['s', 'e', 'y', 'l'])
-assertEquals(scan('.$', 'regexps\nare\nreally\ncool', { jsMultiline: false }), ['l'])
-assertEquals(scan('/w', 'ab+cd-efg*hijk/lmn'), [
-  'a',
-  'b',
-  'c',
-  'd',
-  'e',
-  'f',
-  'g',
-  'h',
-  'i',
-  'j',
-  'k',
-  'l',
-  'm',
-  'n',
-])
-assertEquals(scan('/W', 'ab+cd-efg*hijk/lmn'), ['+', '-', '*', '/'])
+  assertMatches('^a+', '...aa', NO_MATCH_MESSAGE)
+  assertMatches('^a+', 'aa', '->aa<-')
+  assertMatches('^a+$', 'aa...', NO_MATCH_MESSAGE)
+  assertMatches('^a+$', 'aa', '->aa<-')
+  assertMatches('\b', 'some_word', '-><-some_word')
+  assertMatches('\b/w{4}', '           some_word   ', '           ->some<-_word   ')
+  assertMatches('/w{4}\b', '           some_word   ', '           some_->word<-   ')
+  assertMatches('\b/w{4}', 'some_word   ', '->some<-_word   ')
+  assertMatches('/w{4}\b', '           some_word', '           some_->word<-')
+  assertMatches('\b/w\b', '               x              ', '               ->x<-              ')
+  assertMatches('\b/w\b', '               xx              ', NO_MATCH_MESSAGE)
+})
 
-log('Done!')
+Deno.test('scan()', () => {
+  debugMode = false
 
-// Reset the node counters.
-nNodeCount = 0
-cNodeCount = 0
+  assertEquals(
+    scan(
+      '/w+([.]/w+)*@/w+([.]/w+)+',
+      '| john.doe@gmail.com | john@gmail.com.us | john.doe@ | @gmail.com | john@gmail | jo.hn.do.e@g.mail.co.m |'
+    ),
+    ['john.doe@gmail.com', 'john@gmail.com.us', 'jo.hn.do.e@g.mail.co.m']
+  )
+  assertEquals(scan('/d{2}', '01234567'), ['01', '23', '45', '67'])
+  assertEquals(scan('/d', '01234567'), ['0', '1', '2', '3', '4', '5', '6', '7'])
+  assertEquals(scan('.', '01234567'), ['0', '1', '2', '3', '4', '5', '6', '7'])
+  assertEquals(scan('\b/w', 'regexps are really cool'), ['r', 'a', 'r', 'c'])
+  assertEquals(scan('/w\b', 'regexps are really cool'), ['s', 'e', 'y', 'l'])
+  assertEquals(scan('/w', 'ab+cd-efg*hijk/lmn'), [
+    'a',
+    'b',
+    'c',
+    'd',
+    'e',
+    'f',
+    'g',
+    'h',
+    'i',
+    'j',
+    'k',
+    'l',
+    'm',
+    'n',
+  ])
+  assertEquals(scan('/W', 'ab+cd-efg*hijk/lmn'), ['+', '-', '*', '/'])
+})
 
-debugMode = previousDebugMode
+Deno.test('jsMultiline on x off behavior', () => {
+  debugMode = false
+
+  assertEquals(scan('^.', 'regexps\nare\nreally\ncool', { jsMultiline: true }), [
+    'r',
+    'a',
+    'r',
+    'c',
+  ])
+  assertEquals(scan('^.', 'regexps\nare\nreally\ncool', { jsMultiline: false }), ['r'])
+  assertEquals(scan('.$', 'regexps\nare\nreally\ncool', { jsMultiline: true }), [
+    's',
+    'e',
+    'y',
+    'l',
+  ])
+  assertEquals(scan('.$', 'regexps\nare\nreally\ncool', { jsMultiline: false }), ['l'])
+})
+
+Deno.test('greedy x lazy behavior', () => {
+  debugMode = false
+
+  assertMatches('(iss)+', 'mississipi', 'm->ississ<-ipi', { greedy: true })
+  assertMatches('(iss)+', 'mississipi', 'm->iss<-issipi', { greedy: false })
+})
