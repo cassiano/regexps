@@ -613,16 +613,18 @@ const matchNfa = (
   const isEmptyInput = input.length === index
   const isStartOfInput = index === 0
 
+  debug(
+    () =>
+      `[input: '${input}', index: ${index}, previousChar: '${previousChar}', options: ${inspect(
+        options
+      )}] Trying to match against node ${nodeAsString(currentNode)}`
+  )
+
   switch (currentNode.type) {
     case 'NNode': {
       const currentChar = isEmptyInput ? '' : input[index]
 
-      debug(
-        () =>
-          `[input: '${input}', index: ${index}, previousChar: '${previousChar}', currentChar: '${currentChar}'] Trying to match character '${
-            currentChar ?? ''
-          }' against node ${nodeAsString(currentNode)}`
-      )
+      debug(() => `Current character: '${currentChar}'`)
 
       if (currentNode.isLiteral) {
         if (currentChar === currentNode.character)
@@ -683,13 +685,6 @@ const matchNfa = (
 
     case 'CNode': {
       const methodToCall = options.greedy ? 'next' : 'nextAlt'
-
-      debug(
-        () =>
-          `[input: '${input}', index: ${index}, previousChar: '${previousChar}'] Trying to match against node ${nodeAsString(
-            currentNode
-          )}`
-      )
 
       let match = matchNfa(currentNode[methodToCall], input, index, previousChar, options)
 
