@@ -1,6 +1,7 @@
 import { assertEquals } from 'https://deno.land/std/testing/asserts.ts'
 import {
   plus,
+  PLUS_SIGN,
   and3,
   Parser,
   and,
@@ -171,21 +172,22 @@ const quantifier: Parser<RepetitionLimitsType> = memoize(
   )
 )
 
-const questionMark = char('?')
+const QUESTION_MARK = '?'
+const questionMark = char(QUESTION_MARK)
 
 const repetition: Parser<RepetitionType> = memoize(
   map(
     and3(
       or3(singleChar, characterClass, parenthesized),
       quantifier,
-      optional(or(plus, questionMark))
+      optional(or(questionMark, plus))
     ),
     ([expr, limits, lazyOrPossessive]) => ({
       type: 'repetition',
       expr,
       limits,
-      isLazy: lazyOrPossessive === '?',
-      isPossessive: lazyOrPossessive === '+',
+      isLazy: lazyOrPossessive === QUESTION_MARK,
+      isPossessive: lazyOrPossessive === PLUS_SIGN,
     })
   )
 )
