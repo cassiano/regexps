@@ -648,17 +648,20 @@ const matchNfa = (
 
   const isEmptyInput = input.length === index
   const isStartOfInput = index === 0
-  const currentChar = isEmptyInput ? '' : input[index]
 
   debug(
     () =>
-      `[input: '${input}', index: ${index}, currentChar: '${currentChar}', previousChar: '${previousChar}', options: ${inspect(
+      `[input: '${input}', index: ${index}, previousChar: '${previousChar}', options: ${inspect(
         options
       )}] Trying to match against node ${nodeAsString(currentNode)}`
   )
 
   switch (currentNode.type) {
     case 'NNode': {
+      const currentChar = isEmptyInput ? '' : input[index]
+
+      debug(() => `[currentChar: '${currentChar}']`)
+
       if (currentNode.isLiteral) {
         if (currentChar === currentNode.character)
           // Matches character literally.
@@ -730,8 +733,10 @@ const matchNfa = (
           match
         )
       else if (
-        !(currentNode.isPossessive || match.stopBacktracking) ||
-        currentChar === EMPTY_STRING
+        !(
+          // Treat an exceptional case at the end of a possessive repetition, when the input string gets empty.
+          ((currentNode.isPossessive && !isEmptyInput) || match.stopBacktracking)
+        )
       ) {
         const methodToCall = !currentNode.isLazy ? 'nextAlt' : 'next'
 
