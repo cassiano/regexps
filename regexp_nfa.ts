@@ -648,20 +648,17 @@ const matchNfa = (
 
   const isEmptyInput = input.length === index
   const isStartOfInput = index === 0
+  const currentChar = isEmptyInput ? '' : input[index]
 
   debug(
     () =>
-      `[input: '${input}', index: ${index}, previousChar: '${previousChar}', options: ${inspect(
+      `[input: '${input}', index: ${index}, currentChar: '${currentChar}', previousChar: '${previousChar}', options: ${inspect(
         options
       )}] Trying to match against node ${nodeAsString(currentNode)}`
   )
 
   switch (currentNode.type) {
     case 'NNode': {
-      const currentChar = isEmptyInput ? '' : input[index]
-
-      debug(() => `Current character: '${currentChar}'`)
-
       if (currentNode.isLiteral) {
         if (currentChar === currentNode.character)
           // Matches character literally.
@@ -732,7 +729,10 @@ const matchNfa = (
           ),
           match
         )
-      else if (!(currentNode.isPossessive || match.stopBacktracking)) {
+      else if (
+        !(currentNode.isPossessive || match.stopBacktracking) ||
+        currentChar === EMPTY_STRING
+      ) {
         const methodToCall = !currentNode.isLazy ? 'nextAlt' : 'next'
 
         match = matchNfa(currentNode[methodToCall], input, index, previousChar, options)
@@ -1016,4 +1016,7 @@ Deno.test('backtrackable (default) x possessive behavior', () => {
 
   assertMatches('a+a', 'aaaa', '->aaaa<-')
   assertMatches('a++a', 'aaaa', NO_MATCH_MESSAGE)
+
+  assertEquals(scan('/d++', '1234567890'), ['1234567890'])
+  assertEquals(scan('/d*+', '1234567890'), ['1234567890'])
 })
