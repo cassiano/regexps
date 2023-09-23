@@ -484,6 +484,7 @@ const pruneFurtherIterationsForRemainingRepetitions = (
 
     case 1: {
       // 1 dimension (standard array)
+      // deno-lint-ignore no-extra-semi
       ;[i, j] = iterationIndices as [number, number]
       break
     }
@@ -619,8 +620,9 @@ export const buildAndMatch = (
   input: string,
   exactMatch = false
 ): { match: ParserResult<string>; steps: number } => {
-  let result, rest
-  let steps: number = 0
+  let result: string | Error
+  let rest: string
+  let steps = 0
 
   if (regExpAsString.startsWith(CARET)) {
     regExpAsString = regExpAsString.slice(1)
@@ -631,7 +633,7 @@ export const buildAndMatch = (
   for (let i = 0; i < (exactMatch ? 1 : input.length); i++) {
     resetGlobalState()
 
-    let stop: boolean = false
+    let stop = false
 
     const ast = buildRegExpAST(regExpAsString)
     const parser = regExpParserFromAST(ast)
@@ -724,7 +726,9 @@ declare const Deno: {
 
 export const log = console.log
 
+// deno-lint-ignore ban-types
 export const inspect = (value: object) => Deno.inspect(value, { depth: 999, colors: true })
+// deno-lint-ignore ban-types
 export const print = (value: object) => log(inspect(value))
 
 export const showRegExp = (regExpAsString: string) => print(buildRegExpAST(regExpAsString))
