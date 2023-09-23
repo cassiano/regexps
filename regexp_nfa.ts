@@ -1,5 +1,7 @@
 import { assertEquals } from 'https://deno.land/std/testing/asserts.ts'
 import {
+  plus,
+  and3,
   Parser,
   and,
   char,
@@ -74,6 +76,8 @@ type RepetitionType = {
   type: 'repetition'
   expr: SingleCharType | CharacterClassType | ParenthesizedType
   limits: RepetitionLimitsType
+  isLazy: boolean
+  isPossessive: boolean
 }
 
 type RegExpTokenType =
@@ -167,12 +171,23 @@ const quantifier: Parser<RepetitionLimitsType> = memoize(
   )
 )
 
+const questionMark = char('?')
+
 const repetition: Parser<RepetitionType> = memoize(
-  map(and(or3(singleChar, characterClass, parenthesized), quantifier), ([expr, limits]) => ({
-    type: 'repetition',
-    expr,
-    limits,
-  }))
+  map(
+    and3(
+      or3(singleChar, characterClass, parenthesized),
+      quantifier,
+      optional(or(plus, questionMark))
+    ),
+    ([expr, limits, lazyOrPossessive]) => ({
+      type: 'repetition',
+      expr,
+      limits,
+      isLazy: lazyOrPossessive === '?',
+      isPossessive: lazyOrPossessive === '+',
+    })
+  )
 )
 
 const factor: Parser<RegExpTokenType> = memoize(
@@ -258,14 +273,21 @@ const debug = (messageOrFalse: () => string | false): void => {
 
 // CNode ("Cross" non-terminal Node). Splits the current search path, matching one of 2 possible
 // choices/alternatives. It always has one input path and exactly two output paths. An output path
-// equals to `singletonENode` means an end state (i.e. a successful match). If it equals to
-// `singletonFNode`, it means a failed state (i.e. an unsuccessful match, which does not allow
+// equals to `endNode` means an end state (i.e. a successful match). If it equals to
+// `failedNode`, it means a failed state (i.e. an unsuccessful match, which does not allow
 // backtracking).
-type CNodeType = { type: 'CNode'; id: number; next: NodeType; nextAlt: NodeType }
+type CNodeType = {
+  type: 'CNode'
+  id: number
+  next: NodeType
+  nextAlt: NodeType
+  isPossessive: boolean
+  isLazy: boolean
+}
 
 // NNode ("Normal" terminal Node). Matches a single character. It always has one input path and
-// exactly one output path. An output path equals to `singletonENode` means an end state (i.e. a
-// successful match). If it equals to `singletonFNode`, it means a failed state (i.e. an
+// exactly one output path. An output path equals to `endNode` means an end state (i.e. a
+// successful match). If it equals to `failedNode`, it means a failed state (i.e. an
 // unsuccessful match, which does not allow backtracking).
 type NNodeType = {
   type: 'NNode'
@@ -300,19 +322,28 @@ const createNNode = (character: SingleChar, next: NodeType, isLiteral: boolean):
   next,
 })
 
-const createCNode = (next: NodeType, nextAlt: NodeType): CNodeType => ({
+const createCNode = (
+  next: NodeType,
+  nextAlt: NodeType,
+  isPossessive = false,
+  isLazy = false
+): CNodeType => ({
   type: 'CNode',
   id: cNodeCount++,
   next,
   nextAlt,
+  isPossessive,
+  isLazy,
 })
 
-const singletonENode: ENodeType = {
+// Create the singleton End Node.
+const endNode: ENodeType = {
   type: 'ENode',
   id: 0,
 }
 
-const singletonFNode: FNodeType = {
+// Create the singleton Failed Node.
+const failedNode: FNodeType = {
   type: 'FNode',
   id: 0,
 }
@@ -334,7 +365,7 @@ const mapCharacterClassOptions = memoize((options: CharacterClassOptionsType) =>
 const nodeAsString = (node: NodeType) => `${node.type} #${node.id}`
 
 // Clones a node, setting its `next` and `nextAlt` (in the case of a CNode) props which are
-// `singletonEnode` to `defaultNext`.
+// `endNode` to `defaultNext`.
 const cloneNode = (
   node: NodeType,
   defaultNext: NodeType,
@@ -347,14 +378,14 @@ const cloneNode = (
 
   // Clone the node for NNode and CNode types, delaying the creation of its `next` and `nextAlt` (in
   // the case of a CNode) props, so the new node can be added right away into the clones map. We
-  // temporarily use `singletonFnode` in place of the actual (yet to be cloned) nodes.
+  // temporarily use `failedNode` in place of the actual (yet to be cloned) nodes.
   switch (node.type) {
     case 'NNode':
-      partialClone = createNNode(node.character, singletonFNode, node.isLiteral)
+      partialClone = createNNode(node.character, failedNode, node.isLiteral)
       break
 
     case 'CNode':
-      partialClone = createCNode(singletonFNode, singletonFNode)
+      partialClone = createCNode(failedNode, failedNode, node.isPossessive, node.isLazy)
       break
 
     case 'ENode':
@@ -371,14 +402,12 @@ const cloneNode = (
 
   // With the new clone properly saved in the `clones` map, set its `next` prop.
   partialClone.next =
-    node.next === singletonENode
-      ? defaultNext
-      : cloneNode(node.next, defaultNext, partialClonesHistory)
+    node.next === endNode ? defaultNext : cloneNode(node.next, defaultNext, partialClonesHistory)
 
   // Set its `nextAlt` prop (for CNodes).
   if (node.type === 'CNode' && partialClone.type === 'CNode')
     partialClone.nextAlt =
-      node.nextAlt === singletonENode
+      node.nextAlt === endNode
         ? defaultNext
         : cloneNode(node.nextAlt, defaultNext, partialClonesHistory)
 
@@ -407,9 +436,9 @@ const createNfaNodeFromCharacterClassRegExpToken = (
     const newLineNode = createNNode(NEW_LINE, nextNode, true) // Only "\n"
     const catchAllNode = createCNode(periodNode, newLineNode)
 
-    lastNode.next = singletonFNode // FNode means "no match!".
+    lastNode.next = failedNode // FNode means "no match!".
     lastNode = createCNode(lastNode, catchAllNode)
-    nextNode = singletonFNode
+    nextNode = failedNode
   }
 
   let accNode: NodeType = lastNode
@@ -501,21 +530,26 @@ const createNfaNodeFromRepetitionRegExpToken = (
   //                                           └──── [a]   ▟
 
   const limits = astNode.limits
-  const repeatingNode = createNfaNodeFromRegExpToken(astNode.expr, singletonENode)
+  const repeatingNode = createNfaNodeFromRegExpToken(astNode.expr, endNode)
 
   let rightNodeNext: NodeType = nextNode
   let rightCNode: NodeType = nextNode
 
   if (limits.max !== Infinity) {
     times(limits.max - limits.min, () => {
-      rightCNode = createCNode(cloneNode(repeatingNode, rightNodeNext), nextNode)
+      rightCNode = createCNode(
+        cloneNode(repeatingNode, rightNodeNext),
+        nextNode,
+        astNode.isPossessive,
+        astNode.isLazy
+      )
       rightNodeNext = rightCNode
     })
   } // limits.max === Infinity
   else {
-    // Notice the temporary use of `singletonFnode` below as the `next` prop, since it will be replaced
+    // Notice the temporary use of `failedNode` below as the `next` prop, since it will be replaced
     // right after creating the CNode.
-    rightCNode = createCNode(singletonFNode, nextNode)
+    rightCNode = createCNode(failedNode, nextNode, astNode.isPossessive, astNode.isLazy)
     rightCNode.next = cloneNode(repeatingNode, rightCNode)
   }
 
@@ -566,7 +600,7 @@ export const buildNfaFromRegExp = (
 
   debug(() => printNodes && `\nAST: \n\n${inspect(ast)}`)
 
-  const nfa = createNfaFromAst(ast, singletonENode)
+  const nfa = createNfaFromAst(ast, endNode)
 
   debug(() => printNodes && `\nNFA: \n\n${inspect(nfa)}`)
 
@@ -684,7 +718,7 @@ const matchNfa = (
     }
 
     case 'CNode': {
-      const methodToCall = options.greedy ? 'next' : 'nextAlt'
+      const methodToCall = !currentNode.isLazy ? 'next' : 'nextAlt'
 
       let match = matchNfa(currentNode[methodToCall], input, index, previousChar, options)
 
@@ -696,8 +730,8 @@ const matchNfa = (
           ),
           match
         )
-      else if (!match.stopBacktracking) {
-        const methodToCall = options.greedy ? 'nextAlt' : 'next'
+      else if (!(currentNode.isPossessive || match.stopBacktracking)) {
+        const methodToCall = !currentNode.isLazy ? 'nextAlt' : 'next'
 
         match = matchNfa(currentNode[methodToCall], input, index, previousChar, options)
 
@@ -731,7 +765,6 @@ const matchNfa = (
 
 type RegExpOptionsType = {
   jsMultiline?: boolean
-  greedy?: boolean
 }
 
 type BuildNfaFromRegExpAndMatchOptionsType = {
@@ -769,7 +802,6 @@ const matchFromNfa = (
     arrows = false,
     startingIndex = 0,
     jsMultiline = true,
-    greedy = true,
   }: BuildNfaFromRegExpAndMatchOptionsType = {}
 ): MatchFromNfaReturnType => {
   matchNfaCount = 0
@@ -782,7 +814,6 @@ const matchFromNfa = (
   ) {
     const match = matchNfa(nfa, input, index, index > 0 ? input[index - 1] : '', {
       jsMultiline,
-      greedy,
     })
 
     debug(() => `match: ${inspect(match)}, accumulated matchNfaCount: ${matchNfaCount}`)
@@ -962,9 +993,25 @@ Deno.test('jsMultiline on x off behavior', () => {
   assertEquals(scan('.$', 'regexps\nare\nreally\ncool', { jsMultiline: false }), ['l'])
 })
 
-Deno.test('greedy x lazy behavior', () => {
+Deno.test('greedy (default) x lazy behavior', () => {
   debugMode = false
 
-  assertMatches('(iss)+', 'mississipi', 'm->ississ<-ipi', { greedy: true })
-  assertMatches('(iss)+', 'mississipi', 'm->iss<-issipi', { greedy: false })
+  assertMatches('(iss)+', 'mississipi', 'm->ississ<-ipi')
+  assertMatches('(iss)+?', 'mississipi', 'm->iss<-issipi')
+
+  assertMatches('a*', 'aaaaa', '->aaaaa<-')
+  assertMatches('a*?', 'aaaaa', '-><-aaaaa')
+
+  assertMatches('a+', 'aaaaa', '->aaaaa<-')
+  assertMatches('a+?', 'aaaaa', '->a<-aaaa')
+})
+
+Deno.test('backtrackable (default) x possessive behavior', () => {
+  debugMode = false
+
+  assertMatches('a*a', 'aaaa', '->aaaa<-')
+  assertMatches('a*+a', 'aaaa', NO_MATCH_MESSAGE)
+
+  assertMatches('a+a', 'aaaa', '->aaaa<-')
+  assertMatches('a++a', 'aaaa', NO_MATCH_MESSAGE)
 })

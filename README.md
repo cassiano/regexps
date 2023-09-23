@@ -34,13 +34,23 @@ deno
 
 
 // Matching regexps against a string, using the default "greedy" behavior.
-> re.buildNfaFromRegExpAndMatch('a+', 'aaaaaaaaaaaaaaaaa', { arrows: true, greedy: true })
+> re.buildNfaFromRegExpAndMatch('a+', 'aaaaaaaaaaaaaaaaa', { arrows: true })
 { match: "->aaaaaaaaaaaaaaaaa<-", start: 0, end: 16 }
 
 
 // Matching regexps against a string, using the alternative "lazy" behavior.
-> re.buildNfaFromRegExpAndMatch('a+', 'aaaaaaaaaaaaaaaaa', { arrows: true, greedy: false })
+> re.buildNfaFromRegExpAndMatch('a+?', 'aaaaaaaaaaaaaaaaa', { arrows: true })
 { match: "->a<-aaaaaaaaaaaaaaaa", start: 0, end: 0 }
+
+
+// Matching regexps against a string, using the default "greedy" behavior.
+> re.buildNfaFromRegExpAndMatch('a+a', 'aaaaaaaaaaaaaaaaa', { arrows: true })
+{ match: "->aaaaaaaaaaaaaaaaa<-", start: 0, end: 16 }
+
+
+// Matching regexps against a string, using the alternative "possessive" behavior.
+> re.buildNfaFromRegExpAndMatch('a++a', 'aaaaaaaaaaaaaaaaa', { arrows: true })
+"(sorry, no match)"
 
 
 // Scanning a string against a regexp and collect all results.
