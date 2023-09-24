@@ -769,15 +769,20 @@ const matchNfa = (
     }
 
     case 'CNode': {
-      const methodToCall = currentNode.branchingMode !== 'lazy' ? 'next' : 'nextAlt'
+      const branch = currentNode.branchingMode !== 'lazy' ? 'next' : 'nextAlt'
 
-      let match = matchNfa(currentNode[methodToCall], input, index, previousChar, options)
+      debug(
+        () =>
+          `[input: '${input}', index: ${index}] Trying CNode's #${currentNode.id}'s "${branch}" branch`
+      )
+
+      let match = matchNfa(currentNode[branch], input, index, previousChar, options)
 
       if (match.matched)
         return (
           debug(
             () =>
-              `[input: '${input}', index: ${index}] Passed CNode #${currentNode.id}'s ${methodToCall} path!`
+              `[input: '${input}', index: ${index}] Passed CNode #${currentNode.id}'s "${branch}" branch!`
           ),
           match
         )
@@ -787,15 +792,20 @@ const matchNfa = (
           ((currentNode.branchingMode === 'possessive' && !isEmptyInput) || match.stopBacktracking)
         )
       ) {
-        const methodToCall = currentNode.branchingMode !== 'lazy' ? 'nextAlt' : 'next'
+        const branch = currentNode.branchingMode !== 'lazy' ? 'nextAlt' : 'next'
 
-        match = matchNfa(currentNode[methodToCall], input, index, previousChar, options)
+        debug(
+          () =>
+            `[input: '${input}', index: ${index}] Trying CNode's #${currentNode.id}'s alternative "${branch}" branch`
+        )
+
+        match = matchNfa(currentNode[branch], input, index, previousChar, options)
 
         if (match.matched)
           return (
             debug(
               () =>
-                `[input: '${input}', index: ${index}] Passed CNode #${currentNode.id}'s ${methodToCall} path!`
+                `[input: '${input}', index: ${index}] Passed CNode #${currentNode.id}'s "${branch}" branch!`
             ),
             match
           )
@@ -815,6 +825,8 @@ const matchNfa = (
       throw new Error(`[${exhaustiveCheck}] Invalid NFA node type`)
     }
   }
+
+  debug(() => `[input: '${input}', index: ${index}] No match!`)
 
   return { matched: false, input, index }
 }
