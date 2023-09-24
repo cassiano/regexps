@@ -31,7 +31,6 @@ import {
   allButCharSet,
   or4,
   charSequence,
-  precededBy,
   memoize,
   allButChar,
   charSet,
@@ -71,6 +70,7 @@ type CharacterClassType = {
 type ParenthesizedType = {
   type: 'parenthesized'
   expr: RegExpType
+  isNonCapturingGroup: boolean
 }
 type AlternationType = {
   type: 'alternation'
@@ -219,10 +219,11 @@ const characterClass: Parser<CharacterClassType> = memoize(
 
 const parenthesized: Parser<ParenthesizedType> = memoize(
   map(
-    delimitedBy(openParens, precededBy(optional(charSequence('?:')), regExp), closeParens),
-    expr => ({
+    delimitedBy(openParens, and(optional(charSequence('?:')), regExp), closeParens),
+    ([nonCapturingGroupPrefix, expr]) => ({
       type: 'parenthesized' as const,
       expr,
+      isNonCapturingGroup: nonCapturingGroupPrefix !== EMPTY_STRING,
     })
   )
 )
