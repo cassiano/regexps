@@ -273,6 +273,8 @@ const debug = (messageOrFalse: () => string | false): void => {
 // article from Ken Thompson: https://dl.acm.org/doi/epdf/10.1145/363347.363387         //
 //////////////////////////////////////////////////////////////////////////////////////////
 
+type CNodeBranchingModeType = 'default' | 'lazy' | 'possessive'
+
 // CNode ("Cross" non-terminal Node). Splits the current search path, matching one of 2 possible
 // choices/alternatives. It always has one input path and exactly two output paths. An output path
 // equals to `endNode` means an end state (i.e. a successful match). If it equals to
@@ -283,8 +285,7 @@ type CNodeType = {
   id: number
   next: NodeType
   nextAlt: NodeType
-  isPossessive: boolean
-  isLazy: boolean
+  branchingMode: CNodeBranchingModeType
 }
 
 // NNode ("Normal" terminal Node). Matches a single character. It always has one input path and
@@ -327,15 +328,13 @@ const createNNode = (character: SingleChar, next: NodeType, isLiteral: boolean):
 const createCNode = (
   next: NodeType,
   nextAlt: NodeType,
-  isPossessive = false,
-  isLazy = false
+  branchingMode: CNodeBranchingModeType = 'default'
 ): CNodeType => ({
   type: 'CNode',
   id: cNodeCount++,
   next,
   nextAlt,
-  isPossessive,
-  isLazy,
+  branchingMode,
 })
 
 // Create the singleton End Node.
@@ -387,7 +386,7 @@ const cloneNode = (
       break
 
     case 'CNode':
-      partialClone = createCNode(failedNode, failedNode, node.isPossessive, node.isLazy)
+      partialClone = createCNode(failedNode, failedNode, node.branchingMode)
       break
 
     case 'ENode':
@@ -542,8 +541,7 @@ const createNfaNodeFromRepetitionRegExpToken = (
       rightCNode = createCNode(
         cloneNode(repeatingNode, rightNodeNext),
         nextNode,
-        astNode.isPossessive,
-        astNode.isLazy
+        astNode.isPossessive ? 'possessive' : astNode.isLazy ? 'lazy' : 'default'
       )
       rightNodeNext = rightCNode
     })
@@ -551,7 +549,11 @@ const createNfaNodeFromRepetitionRegExpToken = (
   else {
     // Notice the temporary use of `failedNode` below as the `next` prop, since it will be replaced
     // right after creating the CNode.
-    rightCNode = createCNode(failedNode, nextNode, astNode.isPossessive, astNode.isLazy)
+    rightCNode = createCNode(
+      failedNode,
+      nextNode,
+      astNode.isPossessive ? 'possessive' : astNode.isLazy ? 'lazy' : 'default'
+    )
     rightCNode.next = cloneNode(repeatingNode, rightCNode)
   }
 
@@ -720,7 +722,7 @@ const matchNfa = (
     }
 
     case 'CNode': {
-      const methodToCall = !currentNode.isLazy ? 'next' : 'nextAlt'
+      const methodToCall = currentNode.branchingMode !== 'lazy' ? 'next' : 'nextAlt'
 
       let match = matchNfa(currentNode[methodToCall], input, index, previousChar, options)
 
@@ -735,10 +737,10 @@ const matchNfa = (
       else if (
         !(
           // Treat an exceptional case at the end of a possessive repetition, when the input string gets empty.
-          ((currentNode.isPossessive && !isEmptyInput) || match.stopBacktracking)
+          ((currentNode.branchingMode === 'possessive' && !isEmptyInput) || match.stopBacktracking)
         )
       ) {
-        const methodToCall = !currentNode.isLazy ? 'nextAlt' : 'next'
+        const methodToCall = currentNode.branchingMode !== 'lazy' ? 'nextAlt' : 'next'
 
         match = matchNfa(currentNode[methodToCall], input, index, previousChar, options)
 
