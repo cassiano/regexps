@@ -1,5 +1,8 @@
 import { assertEquals } from 'https://deno.land/std/testing/asserts.ts'
 import {
+  OPEN_PARENS,
+  CLOSE_PARENS,
+  isError,
   plus,
   PLUS_SIGN,
   and3,
@@ -18,7 +21,6 @@ import {
   openParens,
   optional,
   or,
-  isError,
   or3,
   orN,
   PERIOD,
@@ -32,6 +34,7 @@ import {
   precededBy,
   memoize,
   allButChar,
+  charSet,
 } from './parser_combinators.ts'
 
 const NO_MATCH_MESSAGE = '(sorry, no match)'
@@ -57,6 +60,7 @@ type RepetitionLimitsType = {
 type SingleCharType = {
   type: 'singleChar'
   character: SingleChar
+  isLiteral: boolean
 }
 
 type CharacterClassType = {
@@ -96,7 +100,8 @@ const QUANTIFIERS: { [quantifier: SingleChar]: RepetitionLimitsType } = {
   '?': { min: 0, max: 1 },
 }
 
-const alternation = char('|')
+const VERTICAL_BAR = '|'
+const alternation = char(VERTICAL_BAR)
 
 const alternativeTerm: Parser<RegExpTokenType> = memoize(input =>
   or(
@@ -111,10 +116,76 @@ const alternativeTerm: Parser<RegExpTokenType> = memoize(input =>
 
 const regExp: Parser<RegExpType> = many1(alternativeTerm)
 
+const DOLLAR_SIGN = '$'
+const CARET = '^'
+const BACK_SLASH = '\\'
+const OPEN_BRACKETS = '{'
+const CLOSE_BRACKETS = '}'
+const OPEN_SQUARE_BRACKETS = '['
+const CLOSE_SQUARE_BRACKETS = ']'
+const WORD_BOUNDARY_CHAR = 'b'
+
+const FORBIDDEN_AS_SINGLE_CHARS = [
+  ...Object.keys(QUANTIFIERS),
+  VERTICAL_BAR,
+  OPEN_BRACKETS,
+  CLOSE_BRACKETS,
+  OPEN_SQUARE_BRACKETS,
+  CLOSE_SQUARE_BRACKETS,
+  OPEN_PARENS,
+  CLOSE_PARENS,
+]
+
+const LITERAL_ALWAYS_ESCAPED_CHAR_MAPPINGS: { [key: SingleChar]: SingleChar } = {
+  n: '\n', // New line
+  t: '\t', // Tab
+  f: '\f', // line Feed
+}
+
+const NON_LITERAL_CHARS = {
+  escaped: [
+    WORD_BOUNDARY_CHAR, // Word boundary anchor
+  ],
+  nonEscaped: [
+    PERIOD, // Catch all (but new line)
+    CARET, // Start of line/string anchor
+    DOLLAR_SIGN, // End of line/string anchor
+  ],
+}
+
 const singleChar: Parser<SingleCharType> = memoize(
   map(
-    allButCharSet('|{}[]()' + Object.keys(QUANTIFIERS).join(EMPTY_STRING)),
-    character => ({ type: 'singleChar', character } as SingleCharType)
+    or(
+      and(
+        char(BACK_SLASH),
+        charSet(
+          [
+            ...Object.keys(LITERAL_ALWAYS_ESCAPED_CHAR_MAPPINGS),
+            ...NON_LITERAL_CHARS.escaped,
+            ...NON_LITERAL_CHARS.nonEscaped,
+            ...FORBIDDEN_AS_SINGLE_CHARS,
+          ].join(EMPTY_STRING)
+        )
+      ),
+      allButCharSet(FORBIDDEN_AS_SINGLE_CHARS.join(EMPTY_STRING))
+    ),
+    charOrEscapedChar =>
+      ({
+        type: 'singleChar',
+        character: Array.isArray(charOrEscapedChar)
+          ? charOrEscapedChar[1] in LITERAL_ALWAYS_ESCAPED_CHAR_MAPPINGS
+            ? LITERAL_ALWAYS_ESCAPED_CHAR_MAPPINGS[charOrEscapedChar[1]]
+            : charOrEscapedChar[1]
+          : charOrEscapedChar,
+        isLiteral:
+          // Neither '.' nor '\b'
+          !(
+            (typeof charOrEscapedChar === 'string' &&
+              NON_LITERAL_CHARS.nonEscaped.indexOf(charOrEscapedChar) >= 0) ||
+            (Array.isArray(charOrEscapedChar) &&
+              NON_LITERAL_CHARS.escaped.indexOf(charOrEscapedChar[1]) >= 0)
+          ),
+      } as SingleCharType)
   )
 )
 
@@ -131,11 +202,13 @@ const characterClassOption: Parser<string | CharacterClassRangeType> = memoize(
   )
 )
 
-const CARET = '^'
-
 const characterClass: Parser<CharacterClassType> = memoize(
   map(
-    delimitedBy(char('['), and(optional(char(CARET)), many1(characterClassOption)), char(']')),
+    delimitedBy(
+      char('['),
+      and(optional(char(CARET)), many1(characterClassOption)),
+      char(CLOSE_SQUARE_BRACKETS)
+    ),
     ([caret, options]) => ({
       type: 'characterClass',
       negated: caret === CARET,
@@ -158,7 +231,11 @@ const quantifier: Parser<RepetitionLimitsType> = memoize(
   map(
     or(
       orN(Object.keys(QUANTIFIERS).map(charSequence)),
-      delimitedBy(char('{'), or(joinedBy(optional(natural), comma), natural), char('}'))
+      delimitedBy(
+        char(OPEN_BRACKETS),
+        or(joinedBy(optional(natural), comma), natural),
+        char(CLOSE_BRACKETS)
+      )
     ),
     result =>
       typeof result === 'string'
@@ -196,7 +273,6 @@ const factor: Parser<RegExpTokenType> = memoize(
   or4(repetition, singleChar, characterClass, parenthesized)
 )
 
-const DOLLAR_SIGN = '$'
 const NEW_LINE = '\n'
 
 const CHARACTER_CLASS_ABBREVIATIONS: { [index: SingleChar]: string } = {
@@ -240,34 +316,6 @@ export const buildRegExpAst = (regExpAsString: string): RegExpType => {
   return result
 }
 
-declare const Deno: {
-  inspect: (...args: unknown[]) => void
-  test: (title: string, testFn: () => void) => void
-  stdin: { read: (...args: unknown[]) => void }
-}
-
-export const log = console.log
-
-// deno-lint-ignore no-explicit-any
-export const inspect = (value: any) =>
-  Deno.inspect(value, { depth: 999, colors: true }) as unknown as string
-// deno-lint-ignore ban-types
-export const print = (value: object) => log(inspect(value))
-
-export const showRegExp = (regExpAsString: string) => print(buildRegExpAst(regExpAsString))
-
-export const times = <T>(n: number, fn: (index: number) => T): T[] => [...Array(n).keys()].map(fn)
-
-const debug = (messageOrFalse: () => string | false): void => {
-  if (debugMode) {
-    const message = messageOrFalse()
-
-    if (message === false) return
-
-    log(message)
-  }
-}
-
 //////////////////////////////////////////////////////////////////////////////////////////
 // The following data structures, algorithms etc are based on ideas extracted from this //
 // article from Ken Thompson: https://dl.acm.org/doi/epdf/10.1145/363347.363387         //
@@ -296,7 +344,7 @@ type NNodeType = {
   type: 'NNode'
   id: number
   character: SingleChar
-  isEscaped: boolean
+  isLiteral: boolean
   next: NodeType
 }
 
@@ -317,11 +365,11 @@ type NodeType = NNodeType | CNodeType | ENodeType | FNodeType
 let nNodeCount = 0
 let cNodeCount = 0
 
-const createNNode = (character: SingleChar, next: NodeType, isEscaped: boolean): NNodeType => ({
+const createNNode = (character: SingleChar, next: NodeType, isLiteral: boolean): NNodeType => ({
   type: 'NNode',
   id: nNodeCount++,
   character,
-  isEscaped,
+  isLiteral,
   next,
 })
 
@@ -382,7 +430,7 @@ const cloneNode = (
   // temporarily use `failedNode` in place of the actual (yet to be cloned) nodes.
   switch (node.type) {
     case 'NNode':
-      partialClone = createNNode(node.character, failedNode, node.isEscaped)
+      partialClone = createNNode(node.character, failedNode, node.isLiteral)
       break
 
     case 'CNode':
@@ -430,10 +478,10 @@ const createNfaNodeFromCharacterClassRegExpToken = (
   nextNode: NodeType
 ): NodeType => {
   const options = mapCharacterClassOptions(astNode.options)
-  let lastNode: NodeType = createNNode(options.at(-1)!, nextNode, false)
+  let lastNode: NodeType = createNNode(options.at(-1)!, nextNode, true)
 
   if (astNode.negated) {
-    const periodNode = createNNode(PERIOD, nextNode, true) // All but "\n"
+    const periodNode = createNNode(PERIOD, nextNode, false) // All but "\n"
     const newLineNode = createNNode(NEW_LINE, nextNode, false) // Only "\n"
     const catchAllNode = createCNode(periodNode, newLineNode)
 
@@ -445,7 +493,7 @@ const createNfaNodeFromCharacterClassRegExpToken = (
   let accNode: NodeType = lastNode
 
   for (let i = options.length - 2; i >= 0; i--) {
-    const node = createNNode(options[i], nextNode, false)
+    const node = createNNode(options[i], nextNode, true)
 
     accNode = createCNode(node, accNode)
   }
@@ -569,7 +617,7 @@ const createNfaNodeFromRepetitionRegExpToken = (
 const createNfaNodeFromRegExpToken = (astNode: RegExpTokenType, nextNode: NodeType): NodeType => {
   switch (astNode.type) {
     case 'singleChar':
-      return createNNode(astNode.character, nextNode, true)
+      return createNNode(astNode.character, nextNode, astNode.isLiteral)
 
     case 'alternation':
       return createCNode(
@@ -618,8 +666,6 @@ export const buildNfaFromRegExp = (
   return nfa
 }
 
-const WORD_BOUNDARY = '\b'
-
 const isWordChar = (char: SingleChar) => {
   const upcasedChar = char.toUpperCase()
 
@@ -664,7 +710,7 @@ const matchNfa = (
 
       debug(() => `[currentChar: '${currentChar}']`)
 
-      if (!currentNode.isEscaped) {
+      if (currentNode.isLiteral) {
         if (currentChar === currentNode.character)
           // Matches character literally.
           return (
@@ -695,7 +741,7 @@ const matchNfa = (
               )
             break
 
-          case WORD_BOUNDARY: // A '\b' matches the (empty) string immediately before or after a "word".
+          case WORD_BOUNDARY_CHAR: // A '\b' matches the (empty) string immediately before or after a "word".
             if (
               (isStartOfInput && isWordChar(currentChar)) ||
               (!isStartOfInput && !isWordChar(previousChar) && isWordChar(currentChar)) ||
@@ -940,13 +986,13 @@ Deno.test('Anchors', () => {
   assertMatches('^a+', 'aa', '->aa<-')
   assertMatches('^a+$', 'aa...', NO_MATCH_MESSAGE)
   assertMatches('^a+$', 'aa', '->aa<-')
-  assertMatches('\b', 'some_word', '-><-some_word')
-  assertMatches('\b/w{4}', '           some_word   ', '           ->some<-_word   ')
-  assertMatches('/w{4}\b', '           some_word   ', '           some_->word<-   ')
-  assertMatches('\b/w{4}', 'some_word   ', '->some<-_word   ')
-  assertMatches('/w{4}\b', '           some_word', '           some_->word<-')
-  assertMatches('\b/w\b', '               x              ', '               ->x<-              ')
-  assertMatches('\b/w\b', '               xx              ', NO_MATCH_MESSAGE)
+  assertMatches('\\b', 'some_word', '-><-some_word')
+  assertMatches('\\b/w{4}', '           some_word   ', '           ->some<-_word   ')
+  assertMatches('/w{4}\\b', '           some_word   ', '           some_->word<-   ')
+  assertMatches('\\b/w{4}', 'some_word   ', '->some<-_word   ')
+  assertMatches('/w{4}\\b', '           some_word', '           some_->word<-')
+  assertMatches('\\b/w\\b', '               x              ', '               ->x<-              ')
+  assertMatches('\\b/w\\b', '               xx              ', NO_MATCH_MESSAGE)
 })
 
 Deno.test('scan()', () => {
@@ -962,8 +1008,8 @@ Deno.test('scan()', () => {
   assertEquals(scan('/d{2}', '01234567'), ['01', '23', '45', '67'])
   assertEquals(scan('/d', '01234567'), ['0', '1', '2', '3', '4', '5', '6', '7'])
   assertEquals(scan('.', '01234567'), ['0', '1', '2', '3', '4', '5', '6', '7'])
-  assertEquals(scan('\b/w', 'regexps are really cool'), ['r', 'a', 'r', 'c'])
-  assertEquals(scan('/w\b', 'regexps are really cool'), ['s', 'e', 'y', 'l'])
+  assertEquals(scan('\\b/w', 'regexps are really cool'), ['r', 'a', 'r', 'c'])
+  assertEquals(scan('/w\\b', 'regexps are really cool'), ['s', 'e', 'y', 'l'])
   assertEquals(scan('/w', 'ab+cd-efg*hijk/lmn'), [
     'a',
     'b',
@@ -1027,3 +1073,31 @@ Deno.test('backtrackable (default) x possessive behavior', () => {
   assertEquals(scan('/d++', '1234567890'), ['1234567890'])
   assertEquals(scan('/d*+', '1234567890'), ['1234567890'])
 })
+
+declare const Deno: {
+  inspect: (...args: unknown[]) => void
+  test: (title: string, testFn: () => void) => void
+  stdin: { read: (...args: unknown[]) => void }
+}
+
+export const log = console.log
+
+// deno-lint-ignore no-explicit-any
+export const inspect = (value: any) =>
+  Deno.inspect(value, { depth: 999, colors: true }) as unknown as string
+// deno-lint-ignore ban-types
+export const print = (value: object) => log(inspect(value))
+
+export const showRegExp = (regExpAsString: string) => print(buildRegExpAst(regExpAsString))
+
+export const times = <T>(n: number, fn: (index: number) => T): T[] => [...Array(n).keys()].map(fn)
+
+const debug = (messageOrFalse: () => string | false): void => {
+  if (debugMode) {
+    const message = messageOrFalse()
+
+    if (message === false) return
+
+    log(message)
+  }
+}
