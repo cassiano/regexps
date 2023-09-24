@@ -296,7 +296,7 @@ type NNodeType = {
   type: 'NNode'
   id: number
   character: SingleChar
-  isLiteral: boolean
+  isEscaped: boolean
   next: NodeType
 }
 
@@ -317,11 +317,11 @@ type NodeType = NNodeType | CNodeType | ENodeType | FNodeType
 let nNodeCount = 0
 let cNodeCount = 0
 
-const createNNode = (character: SingleChar, next: NodeType, isLiteral: boolean): NNodeType => ({
+const createNNode = (character: SingleChar, next: NodeType, isEscaped: boolean): NNodeType => ({
   type: 'NNode',
   id: nNodeCount++,
   character,
-  isLiteral,
+  isEscaped,
   next,
 })
 
@@ -382,7 +382,7 @@ const cloneNode = (
   // temporarily use `failedNode` in place of the actual (yet to be cloned) nodes.
   switch (node.type) {
     case 'NNode':
-      partialClone = createNNode(node.character, failedNode, node.isLiteral)
+      partialClone = createNNode(node.character, failedNode, node.isEscaped)
       break
 
     case 'CNode':
@@ -430,11 +430,11 @@ const createNfaNodeFromCharacterClassRegExpToken = (
   nextNode: NodeType
 ): NodeType => {
   const options = mapCharacterClassOptions(astNode.options)
-  let lastNode: NodeType = createNNode(options.at(-1)!, nextNode, true)
+  let lastNode: NodeType = createNNode(options.at(-1)!, nextNode, false)
 
   if (astNode.negated) {
-    const periodNode = createNNode(PERIOD, nextNode, false) // All but "\n"
-    const newLineNode = createNNode(NEW_LINE, nextNode, true) // Only "\n"
+    const periodNode = createNNode(PERIOD, nextNode, true) // All but "\n"
+    const newLineNode = createNNode(NEW_LINE, nextNode, false) // Only "\n"
     const catchAllNode = createCNode(periodNode, newLineNode)
 
     lastNode.next = failedNode // FNode means "no match!".
@@ -445,7 +445,7 @@ const createNfaNodeFromCharacterClassRegExpToken = (
   let accNode: NodeType = lastNode
 
   for (let i = options.length - 2; i >= 0; i--) {
-    const node = createNNode(options[i], nextNode, true)
+    const node = createNNode(options[i], nextNode, false)
 
     accNode = createCNode(node, accNode)
   }
@@ -569,7 +569,7 @@ const createNfaNodeFromRepetitionRegExpToken = (
 const createNfaNodeFromRegExpToken = (astNode: RegExpTokenType, nextNode: NodeType): NodeType => {
   switch (astNode.type) {
     case 'singleChar':
-      return createNNode(astNode.character, nextNode, false)
+      return createNNode(astNode.character, nextNode, true)
 
     case 'alternation':
       return createCNode(
@@ -664,7 +664,7 @@ const matchNfa = (
 
       debug(() => `[currentChar: '${currentChar}']`)
 
-      if (currentNode.isLiteral) {
+      if (!currentNode.isEscaped) {
         if (currentChar === currentNode.character)
           // Matches character literally.
           return (
