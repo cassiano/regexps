@@ -136,7 +136,7 @@ const FORBIDDEN_AS_SINGLE_CHARS = [
   CLOSE_PARENS,
 ]
 
-const LITERAL_ALWAYS_ESCAPED_CHAR_MAPPINGS: { [key: SingleChar]: SingleChar } = {
+const ALWAYS_ESCAPED_LITERAL_CHAR_MAPPINGS: { [key: SingleChar]: SingleChar } = {
   n: '\n', // New line
   t: '\t', // Tab
   f: '\f', // line Feed
@@ -160,7 +160,7 @@ const singleChar: Parser<SingleCharType> = memoize(
         char(BACK_SLASH),
         charSet(
           [
-            ...Object.keys(LITERAL_ALWAYS_ESCAPED_CHAR_MAPPINGS),
+            ...Object.keys(ALWAYS_ESCAPED_LITERAL_CHAR_MAPPINGS),
             ...NON_LITERAL_CHARS.escaped,
             ...NON_LITERAL_CHARS.nonEscaped,
             ...FORBIDDEN_AS_SINGLE_CHARS,
@@ -173,8 +173,8 @@ const singleChar: Parser<SingleCharType> = memoize(
       ({
         type: 'singleChar',
         character: Array.isArray(charOrEscapedChar)
-          ? charOrEscapedChar[1] in LITERAL_ALWAYS_ESCAPED_CHAR_MAPPINGS
-            ? LITERAL_ALWAYS_ESCAPED_CHAR_MAPPINGS[charOrEscapedChar[1]]
+          ? charOrEscapedChar[1] in ALWAYS_ESCAPED_LITERAL_CHAR_MAPPINGS
+            ? ALWAYS_ESCAPED_LITERAL_CHAR_MAPPINGS[charOrEscapedChar[1]]
             : charOrEscapedChar[1]
           : charOrEscapedChar,
         isLiteral:
