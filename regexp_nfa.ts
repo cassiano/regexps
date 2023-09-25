@@ -947,7 +947,7 @@ const assertMatches = (
   assertEquals(typeof match === 'string' ? match : match.match, matchedResult)
 }
 
-Deno.test('Basic behavior', () => {
+Deno.test('Repetitions', () => {
   debugMode = false
 
   assertMatches('an+', 'banana', 'b->an<-ana')
