@@ -319,7 +319,7 @@ export const buildRegExpAst = (regExpAsString: string): RegExpType => {
 
 //////////////////////////////////////////////////////////////////////////////////////////
 // The following data structures, algorithms etc are based on ideas extracted from this //
-// article from Ken Thompson: https://dl.acm.org/doi/epdf/10.1145/363347.363387         //
+// article by Ken Thompson: https://dl.acm.org/doi/epdf/10.1145/363347.363387           //
 //////////////////////////////////////////////////////////////////////////////////////////
 
 type CNodeBranchingModeType = 'default' | 'lazy' | 'possessive'
