@@ -20,7 +20,7 @@ greedy x lazy behavior ... ok (7ms)
 
 ### To use it in the REPL:
 
-```
+```ts
 deno
 
 // Importing locally.
