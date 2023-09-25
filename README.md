@@ -54,16 +54,16 @@ deno
 
 
 // Scanning a string against a regexp and collect all results.
-> re.scan('/d{2}', '1234567890')
+> re.scan('\\d{2}', '1234567890')
 [ "12", "34", "56", "78", "90" ]
 
 
-// Scanning a string using default multiline behavior, similar to how it works in Ruby.
+// Scanning a string using the default multiline behavior, similar to how it works by default in Ruby.
 > re.scan('^.', 'regexps\nare\nreally\ncool', { jsMultiline: true })
 [ "r", "a", "r", "c" ]
 
 
-// Scanning a string using alternative singleline behavior, similar to how it works in JavaScript.
+// Scanning a string using the alternative singleline behavior, similar to how it works by default in JavaScript.
 > re.scan('^.', 'regexps\nare\nreally\ncool', { jsMultiline: false })
 [ "r" ]
 
