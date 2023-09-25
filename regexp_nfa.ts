@@ -778,7 +778,11 @@ const matchNfa = (
 
       let match = matchNfa(currentNode[branch], input, index, previousChar, options)
 
-      if (match.matched)
+      const charsConsumed = match.index - index
+
+      if (match.matched) {
+        debug(() => `>>>>> Match successful! Characters consumed: ${charsConsumed}`)
+
         return (
           debug(
             () =>
@@ -786,7 +790,7 @@ const matchNfa = (
           ),
           match
         )
-      else if (
+      } else if (
         !(
           (currentNode.branchingMode === 'possessive' && !isEmptyInput) || // Treat an exceptional case at the end of a possessive repetition.
           match.skipBacktrackingInNextAlternativeBranch
