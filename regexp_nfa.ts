@@ -683,7 +683,7 @@ type MatchNfaReturnType = {
   matched: boolean
   input: string
   index: number
-  stopBacktracking?: boolean
+  skipBacktrackingInNextAlternativeBranch?: boolean
 }
 
 const matchNfa = (
@@ -788,8 +788,8 @@ const matchNfa = (
         )
       else if (
         !(
-          // Treat an exceptional case at the end of a possessive repetition, when the input string gets empty.
-          ((currentNode.branchingMode === 'possessive' && !isEmptyInput) || match.stopBacktracking)
+          (currentNode.branchingMode === 'possessive' && !isEmptyInput) || // Treat an exceptional case at the end of a possessive repetition.
+          match.skipBacktrackingInNextAlternativeBranch
         )
       ) {
         const branch = currentNode.branchingMode !== 'lazy' ? 'nextAlt' : 'next'
@@ -818,7 +818,7 @@ const matchNfa = (
       return { matched: true, input, index }
 
     case 'FNode':
-      return { matched: false, input, index, stopBacktracking: true }
+      return { matched: false, input, index, skipBacktrackingInNextAlternativeBranch: true }
 
     default: {
       const exhaustiveCheck: never = currentNode
