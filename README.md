@@ -1,4 +1,6 @@
-# This toy, personal project, uses Parser Combinators and an NFA (Non-deterministic Finite Automatum) to parse and evaluate regular expressions against a given string. The NFA implementation is based on this article from Ken Thompson: https://dl.acm.org/doi/epdf/10.1145/363347.363387
+# Regular Expression Engine
+
+## This personal project uses Parser Combinators and an NFA (Non-deterministic Finite Automatum) to parse and evaluate regular expressions against a given string. The NFA implementation is based on this article by Ken Thompson: https://dl.acm.org/doi/epdf/10.1145/363347.363387
 
 ## Please install Deno (https://docs.deno.com/runtime/manual/getting_started/installation) before using it.
 
@@ -58,12 +60,14 @@ deno
 [ "12", "34", "56", "78", "90" ]
 
 
-// Scanning a string using the default multiline behavior, similar to how it works by default in Ruby.
+// Scanning a string using the default multiline behavior, similar to how it works by default
+// in Ruby.
 > re.scan('^.', 'regexps\nare\nreally\ncool', { jsMultiline: true })
 [ "r", "a", "r", "c" ]
 
 
-// Scanning a string using the alternative singleline behavior, similar to how it works by default in JavaScript.
+// Scanning a string using the alternative singleline behavior, similar to how it works by
+// default in JavaScript.
 > re.scan('^.', 'regexps\nare\nreally\ncool', { jsMultiline: false })
 [ "r" ]
 
