@@ -1018,6 +1018,111 @@ Deno.test('Repetitions', () => {
   assertMatches('(x+x+)+y', 'xxxxxxxxxx', NO_MATCH_MESSAGE)
   assertMatches('(a+)*ab', 'aaaaaaaaaaaab', '->aaaaaaaaaaaab<-')
   assertMatches('.*.*=.*', 'x=x', '->x=x<-')
+})
+
+Deno.test('AST nodes of problematic repetitions', () => {
+  debugMode = false
+
+  // (N*)*
+  // (N+)*
+  // (N?)*
+  // (N*)+
+  // (N+)+
+  // (N?)+
+
+  assertEquals(buildRegExpAst('(a*)*'), [
+    {
+      type: 'repetition',
+      expr: { type: 'singleChar', character: 'a', isLiteral: true },
+      limits: { min: 0, max: Infinity },
+      isLazy: false,
+      isPossessive: false,
+    },
+  ])
+
+  assertEquals(buildRegExpAst('(a+)*'), [
+    {
+      type: 'repetition',
+      expr: { type: 'singleChar', character: 'a', isLiteral: true },
+      limits: { min: 0, max: Infinity },
+      isLazy: false,
+      isPossessive: false,
+    },
+  ])
+
+  assertEquals(buildRegExpAst('(a?)*'), [
+    {
+      type: 'repetition',
+      expr: { type: 'singleChar', character: 'a', isLiteral: true },
+      limits: { min: 0, max: Infinity },
+      isLazy: false,
+      isPossessive: false,
+    },
+  ])
+
+  assertEquals(buildRegExpAst('(a*)+'), [
+    {
+      type: 'repetition',
+      expr: { type: 'singleChar', character: 'a', isLiteral: true },
+      limits: { min: 0, max: Infinity },
+      isLazy: false,
+      isPossessive: false,
+    },
+  ])
+
+  assertEquals(buildRegExpAst('(a+)+'), [
+    {
+      type: 'repetition',
+      expr: { type: 'singleChar', character: 'a', isLiteral: true },
+      limits: { min: 1, max: Infinity },
+      isLazy: false,
+      isPossessive: false,
+    },
+  ])
+
+  assertEquals(buildRegExpAst('(a?)+'), [
+    {
+      type: 'repetition',
+      expr: { type: 'singleChar', character: 'a', isLiteral: true },
+      limits: { min: 0, max: Infinity },
+      isLazy: false,
+      isPossessive: false,
+    },
+  ])
+
+  assertEquals(buildRegExpAst('((((a*)*)*)*)*'), [
+    {
+      type: 'repetition',
+      expr: { type: 'singleChar', character: 'a', isLiteral: true },
+      limits: { min: 0, max: Infinity },
+      isLazy: false,
+      isPossessive: false,
+    },
+  ])
+
+  assertEquals(buildRegExpAst('((((a+)+)+)+)+'), [
+    {
+      type: 'repetition',
+      expr: { type: 'singleChar', character: 'a', isLiteral: true },
+      limits: { min: 1, max: Infinity },
+      isLazy: false,
+      isPossessive: false,
+    },
+  ])
+
+  assertEquals(buildRegExpAst('((((a+)+)*)+)+'), [
+    {
+      type: 'repetition',
+      expr: { type: 'singleChar', character: 'a', isLiteral: true },
+      limits: { min: 0, max: Infinity },
+      isLazy: false,
+      isPossessive: false,
+    },
+  ])
+})
+
+Deno.test('Problematic repetitions', () => {
+  debugMode = false
 
   // Case (N+)+
   assertMatches('(a+)+', '', NO_MATCH_MESSAGE)
@@ -1048,6 +1153,9 @@ Deno.test('Repetitions', () => {
   assertMatches('(a?)+', '', '-><-')
   assertMatches('(a?)+', 'aaaaa', '->aaaaa<-')
   assertMatches('(a?)+', 'baaaaa', '-><-baaaaa')
+
+  // This causes an "stack overflow" error:
+  // assertMatches('((a*)?)+', 'aaaaa', '->aaaaa<-')
 })
 
 Deno.test('Complex repetitions', () => {
@@ -1144,7 +1252,7 @@ Deno.test('jsMultiline on x off behavior', () => {
   assertEquals(scan('.$', 'regexps\nare\nreally\ncool', { jsMultiline: false }), ['l'])
 })
 
-Deno.test('greedy (default) x lazy behavior', () => {
+Deno.test('Greedy (default) x lazy behavior', () => {
   debugMode = false
 
   assertMatches('(iss)+', 'mississipi', 'm->ississ<-ipi')
@@ -1157,7 +1265,7 @@ Deno.test('greedy (default) x lazy behavior', () => {
   assertMatches('a+?', 'aaaaa', '->a<-aaaa')
 })
 
-Deno.test('backtrackable (default) x possessive behavior', () => {
+Deno.test('Backtrackable (default) x possessive behavior', () => {
   debugMode = false
 
   assertMatches('a*a', 'aaaa', '->aaaa<-')
