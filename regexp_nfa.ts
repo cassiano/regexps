@@ -270,9 +270,56 @@ const repetition: Parser<RepetitionType> = memoize(
   )
 )
 
-const factor: Parser<RegExpTokenType> = memoize(
-  or4(repetition, singleChar, characterClass, parenthesized)
-)
+const factor: Parser<RegExpTokenType> = input => {
+  let result: SingleCharType | CharacterClassType | ParenthesizedType | RepetitionType | Error
+  let rest: string
+  ;[result, rest] = or4(repetition, singleChar, characterClass, parenthesized)(input)
+
+  if (isError(result)) return [result, input]
+
+  // Identify the following cases:
+  //
+  // 1) (N*)*
+  // 2) (N+)*
+  // 3) (N?)*
+  // 4) (N*)+
+  // 5) (N+)+
+  // 6) (N?)+
+  //
+  // and replace them by, respectively:
+  //
+  // 1) N*
+  // 2) N*
+  // 3) N*
+  // 4) N*
+  // 5) N+ (notice this is the only case where the `+` is used, while all others use `*`)
+  // 6) N*
+
+  if (
+    result.type === 'repetition' &&
+    result.limits.max === Infinity &&
+    result.expr.type === 'parenthesized' &&
+    result.expr.expr.length === 1 &&
+    result.expr.expr[0].type === 'repetition' &&
+    (result.expr.expr[0].limits.min === 0 || result.expr.expr[0].limits.max === Infinity)
+  ) {
+    const minimumLimits = [result.limits.min, result.expr.expr[0].limits.min]
+    const maximumLimits = [result.limits.max, result.expr.expr[0].limits.max]
+
+    result = { ...result.expr.expr[0] }
+
+    result.limits = {
+      min:
+        minimumLimits.every(limit => limit === 1) &&
+        maximumLimits.every(limit => limit === Infinity)
+          ? 1
+          : 0,
+      max: Infinity,
+    }
+  }
+
+  return [result, rest]
+}
 
 const NEW_LINE = '\n'
 
@@ -961,6 +1008,8 @@ Deno.test('Repetitions', () => {
   assertMatches('is+', 'mississipi', 'm->iss<-issipi')
   assertMatches('(is+)+', 'mississipi', 'm->ississ<-ipi')
   assertMatches('/d{2}/D/d{2}/s*([ap]m)', '12:50 am', '->12:50 am<-')
+  assertMatches('a*', '', '-><-')
+  assertMatches('a+', '', NO_MATCH_MESSAGE)
   assertMatches('a*', '...aa', '-><-...aa')
   assertMatches('a*', 'aa', '->aa<-')
   assertMatches('a+', '...aa', '...->aa<-')
@@ -969,12 +1018,36 @@ Deno.test('Repetitions', () => {
   assertMatches('(x+x+)+y', 'xxxxxxxxxx', NO_MATCH_MESSAGE)
   assertMatches('(a+)*ab', 'aaaaaaaaaaaab', '->aaaaaaaaaaaab<-')
   assertMatches('.*.*=.*', 'x=x', '->x=x<-')
+
+  // Case (N+)+
+  assertMatches('(a+)+', '', NO_MATCH_MESSAGE)
+  assertMatches('(a+)+', 'aaaaa', '->aaaaa<-')
+  assertMatches('(a+)+', 'baaaaa', 'b->aaaaa<-')
+
+  // Case (N+)*
+  assertMatches('(a+)*', '', '-><-')
   assertMatches('(a+)*', 'aaaaa', '->aaaaa<-')
   assertMatches('(a+)*', 'baaaaa', '-><-baaaaa')
-  // assertMatches('(a*)+', 'aaaaa', '->aaaaa<-')
-  // assertMatches('(a*)+', 'baaaaa', '-><-baaaaa')
-  // assertMatches('(a*)*', 'aaaaa', '->aaaaa<-')
-  // assertMatches('(a*)*', 'baaaaa', '-><-baaaaa')
+
+  // Case (N*)*
+  assertMatches('(a*)*', '', '-><-')
+  assertMatches('(a*)*', 'aaaaa', '->aaaaa<-')
+  assertMatches('(a*)*', 'baaaaa', '-><-baaaaa')
+
+  // Case (N*)+
+  assertMatches('(a*)+', '', '-><-')
+  assertMatches('(a*)+', 'aaaaa', '->aaaaa<-')
+  assertMatches('(a*)+', 'baaaaa', '-><-baaaaa')
+
+  // Case (N?)*
+  assertMatches('(a?)*', '', '-><-')
+  assertMatches('(a?)*', 'aaaaa', '->aaaaa<-')
+  assertMatches('(a?)*', 'baaaaa', '-><-baaaaa')
+
+  // Case (N?)+
+  assertMatches('(a?)+', '', '-><-')
+  assertMatches('(a?)+', 'aaaaa', '->aaaaa<-')
+  assertMatches('(a?)+', 'baaaaa', '-><-baaaaa')
 })
 
 Deno.test('Complex repetitions', () => {
