@@ -965,6 +965,12 @@ Deno.test('Repetitions', () => {
   assertMatches('(x+x+)+y', 'xxxxxxxxxx', NO_MATCH_MESSAGE)
   assertMatches('(a+)*ab', 'aaaaaaaaaaaab', '->aaaaaaaaaaaab<-')
   assertMatches('.*.*=.*', 'x=x', '->x=x<-')
+  assertMatches('(a+)*', 'aaaaa', '->aaaaa<-')
+  assertMatches('(a+)*', 'baaaaa', '-><-baaaaa')
+  // assertMatches('(a*)+', 'aaaaa', '->aaaaa<-')
+  // assertMatches('(a*)+', 'baaaaa', '-><-baaaaa')
+  // assertMatches('(a*)*', 'aaaaa', '->aaaaa<-')
+  // assertMatches('(a*)*', 'baaaaa', '-><-baaaaa')
 })
 
 Deno.test('Complex repetitions', () => {
@@ -1082,6 +1088,12 @@ Deno.test('backtrackable (default) x possessive behavior', () => {
 
   assertMatches('a+a', 'aaaa', '->aaaa<-')
   assertMatches('a++a', 'aaaa', NO_MATCH_MESSAGE)
+
+  assertMatches('a+b', 'aaaab', '->aaaab<-')
+  // assertMatches('a++b', 'aaaab', '->aaaab<-')
+
+  assertMatches('a+ab', 'aaaab', '->aaaab<-')
+  assertMatches('a++ab', 'aaaab', NO_MATCH_MESSAGE)
 
   assertEquals(scan('/d++', '1234567890'), ['1234567890'])
   assertEquals(scan('/d*+', '1234567890'), ['1234567890'])
