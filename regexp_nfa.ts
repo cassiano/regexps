@@ -643,7 +643,7 @@ const createNfaNodeFromRepetitionRegExpToken = (
     })
   } // limits.max === Infinity
   else {
-    // Notice the temporary use of `failedNode` below as the `next` prop, since it will be replaced
+    // Notice the temporary use of `failedNode` below as the `next` prop, which will be replaced
     // right after creating the CNode.
     rightCNode = createCNode(
       failedNode,
