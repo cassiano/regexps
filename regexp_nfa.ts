@@ -817,12 +817,10 @@ const matchNfa = (
 
           case WORD_BOUNDARY_CHAR: // A '\b' matches the (empty) string immediately before or after a "word".
             if (
-              // Is left boundary?
-              (isStartOfInput && isWordChar(currentChar)) ||
-              (!isStartOfInput && !isWordChar(previousChar) && isWordChar(currentChar)) ||
-              // Is right boundary?
-              (isEmptyInput && isWordChar(previousChar)) ||
-              (!isWordChar(currentChar) && isWordChar(previousChar))
+              // Either it is a left boundary...
+              ((isStartOfInput || !isWordChar(previousChar)) && isWordChar(currentChar)) ||
+              // ...or a right boundary.
+              ((isEmptyInput || !isWordChar(currentChar)) && isWordChar(previousChar))
             )
               return (
                 debug(() => 'Matched!'),
