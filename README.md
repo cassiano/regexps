@@ -2,9 +2,24 @@
 
 ## This personal project uses Parser Combinators and an NFA (Non-deterministic Finite Automatum) to parse and evaluate regular expressions against a given string. The NFA implementation is based on this article by Ken Thompson: https://dl.acm.org/doi/epdf/10.1145/363347.363387
 
-## Please install Deno (https://docs.deno.com/runtime/manual/getting_started/installation) before using it.
+## Pre-requisites:
 
-### To run tests:
+Please install Deno (https://docs.deno.com/runtime/manual/getting_started/installation) before using it.
+
+## Features include:
+
+- Greeedy match by default
+- Lazy and possessive modes fully supported
+- Really fast backtracking
+- Repetition quantifiers (e.g. \*, +, ?, {m,n}, {m,}, {,n}, {m})
+- Alternations (e.g. 'a|b')
+- Character classes, both default (e.g. [a-z0-9]) and negated (e.g. [^a-z0-9])
+- Character class abbreviations, both default (e.g. \d, \w, \h etc) and negated (e.g. \D, W, \H etc)
+- Additional (non-standar) character class abbreviations (e.g. \o for octal numbers, \y for binary etc)
+- Anchors (\b, ^ and $)
+- scan() function, for returning all matches of a regexp over a given string
+
+## To run tests:
 
 ```
 deno test regexp_nfa.ts
