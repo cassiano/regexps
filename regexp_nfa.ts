@@ -273,9 +273,24 @@ const repetition: Parser<RepetitionType> = memoize(
 const factor: Parser<RegExpTokenType> = memoize(input => {
   let result: SingleCharType | CharacterClassType | ParenthesizedType | RepetitionType | Error
   let rest: string
+  let repetitionsReduced: boolean
   ;[result, rest] = or4(repetition, singleChar, characterClass, parenthesized)(input)
 
   if (isError(result)) return [result, input]
+
+  while (true) {
+    ;[repetitionsReduced, result] = reduceRepetitions(result)
+
+    if (!repetitionsReduced) break
+  }
+
+  return [result, rest]
+})
+
+const reduceRepetitions = (
+  outerRepetition: SingleCharType | CharacterClassType | ParenthesizedType | RepetitionType
+): [boolean, SingleCharType | CharacterClassType | ParenthesizedType | RepetitionType] => {
+  let reduced = false
 
   // Identify the following cases:
   //
@@ -296,30 +311,37 @@ const factor: Parser<RegExpTokenType> = memoize(input => {
   // 6) N*
 
   if (
-    result.type === 'repetition' &&
-    result.limits.max === Infinity &&
-    result.expr.type === 'parenthesized' &&
-    result.expr.expr.length === 1 &&
-    result.expr.expr[0].type === 'repetition' &&
-    (result.expr.expr[0].limits.min === 0 || result.expr.expr[0].limits.max === Infinity)
+    outerRepetition.type === 'repetition' &&
+    outerRepetition.limits.max === Infinity &&
+    outerRepetition.expr.type === 'parenthesized' &&
+    outerRepetition.expr.expr.length === 1
   ) {
-    const minimumLimits = [result.limits.min, result.expr.expr[0].limits.min]
-    const maximumLimits = [result.limits.max, result.expr.expr[0].limits.max]
+    const innerRepetition = outerRepetition.expr.expr[0]
 
-    result = { ...result.expr.expr[0] }
+    if (
+      innerRepetition.type === 'repetition' &&
+      (innerRepetition.limits.min === 0 || innerRepetition.limits.max === Infinity)
+    ) {
+      const minimumLimits = [outerRepetition.limits.min, innerRepetition.limits.min]
+      const maximumLimits = [outerRepetition.limits.max, innerRepetition.limits.max]
 
-    result.limits = {
-      min:
-        minimumLimits.every(limit => limit === 1) &&
-        maximumLimits.every(limit => limit === Infinity)
-          ? 1
-          : 0,
-      max: Infinity,
+      outerRepetition = { ...innerRepetition }
+
+      outerRepetition.limits = {
+        min:
+          minimumLimits.every(limit => limit === 1) &&
+          maximumLimits.every(limit => limit === Infinity)
+            ? 1
+            : 0,
+        max: Infinity,
+      }
+
+      reduced = true
     }
   }
 
-  return [result, rest]
-})
+  return [reduced, outerRepetition]
+}
 
 const NEW_LINE = '\n'
 
@@ -1156,8 +1178,8 @@ Deno.test('Problematic repetitions', () => {
   assertMatches('(a?)+', 'aaaaa', '->aaaaa<-')
   assertMatches('(a?)+', 'baaaaa', '-><-baaaaa')
 
-  // This causes an "stack overflow" error:
-  // assertMatches('((a*)?)+', 'aaaaa', '->aaaaa<-')
+  assertMatches('((a*)?)+', 'aaaaa', '->aaaaa<-')
+  assertMatches('(((a+)*)?)+', 'aaaaa', '->aaaaa<-')
 })
 
 Deno.test('Complex repetitions', () => {
