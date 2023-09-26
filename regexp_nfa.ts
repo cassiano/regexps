@@ -462,7 +462,7 @@ const endNode: ENodeType = {
   id: 0,
 }
 
-// Create the singleton Failed Node.
+// Create the singleton Failed Node. Applicable to negated character classes only.
 const failedNode: FNodeType = {
   type: 'FNode',
   id: 0,
@@ -801,7 +801,10 @@ const matchNfa = (
 
           case DOLLAR_SIGN: // A '$' matches the end of the input string or of each individual line.
             if (options.jsMultiline ? isEmptyInput || currentChar === '\n' : isEmptyInput)
-              return debug(() => 'Matched!'), { matched: true, input, index }
+              return (
+                debug(() => 'Matched!'),
+                matchNfa(currentNode.next, input, index, previousChar, options)
+              )
             break
 
           case PERIOD: // A '.' matches anything but the new line (\n).
@@ -814,8 +817,10 @@ const matchNfa = (
 
           case WORD_BOUNDARY_CHAR: // A '\b' matches the (empty) string immediately before or after a "word".
             if (
+              // Is left boundary?
               (isStartOfInput && isWordChar(currentChar)) ||
               (!isStartOfInput && !isWordChar(previousChar) && isWordChar(currentChar)) ||
+              // Is right boundary?
               (isEmptyInput && isWordChar(previousChar)) ||
               (!isWordChar(currentChar) && isWordChar(previousChar))
             )
@@ -826,12 +831,8 @@ const matchNfa = (
 
             break
 
-          default: // Matches character literally.
-            if (currentChar === currentNode.character)
-              return (
-                debug(() => 'Matched!'),
-                matchNfa(currentNode.next, input, index + 1, currentChar, options)
-              )
+          default:
+            throw new Error(`Invalid non-literal character '${currentNode.character}'`)
         }
       }
 
@@ -848,7 +849,7 @@ const matchNfa = (
 
       if (currentNode.branchingMode === 'possessive') currentNode.possessiveWatermark = index
 
-      let match = matchNfa(currentNode[branch], input, index, previousChar, options)
+      const match = matchNfa(currentNode[branch], input, index, previousChar, options)
 
       if (match.matched) {
         const charsConsumed = match.index - index
@@ -874,16 +875,13 @@ const matchNfa = (
             `[input: '${input}', index: ${index}] Trying CNode's #${currentNode.id}'s alternative "${branch}" branch`
         )
 
-        match = matchNfa(currentNode[branch], input, index, previousChar, options)
-
-        if (match.matched)
-          return (
-            debug(
-              () =>
-                `[input: '${input}', index: ${index}] Passed CNode #${currentNode.id}'s "${branch}" branch!`
-            ),
-            match
-          )
+        return (
+          debug(
+            () =>
+              `[input: '${input}', index: ${index}] Passed CNode #${currentNode.id}'s "${branch}" branch!`
+          ),
+          matchNfa(currentNode[branch], input, index, previousChar, options)
+        )
       }
 
       break
@@ -1136,7 +1134,7 @@ Deno.test('Complex repetitions', () => {
   }
 
   assertMatches('a*'.repeat(100), 'a'.repeat(100), '->' + 'a'.repeat(100) + '<-')
-  assertMatches(repeatedAs(20), 'a'.repeat(1000), '->' + 'a'.repeat(1000) + '<-')
+  assertMatches(repeatedAs(50), 'a'.repeat(1000), '->' + 'a'.repeat(1000) + '<-')
 
   assertMatches(
     '(((a*b)+c)?d,){2,3}',
