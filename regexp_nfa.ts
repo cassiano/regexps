@@ -1050,38 +1050,38 @@ Deno.test('AST nodes of problematic repetitions', () => {
   // [
   //   {
   //     type: 'repetition',
-  //     expr: { type: 'singleChar', character: 'a', isLiteral: true },
+  //     expr: { type: 'singleChar', character: 'x', isLiteral: true },
   //     limits: { min: 0, max: Infinity },
   //     isLazy: false,
   //     isPossessive: false,
   //   },
   // ]
-  const aZeroOrMoreAst = buildRegExpAst('a*')
+  const zeroOrMoreXsAst = buildRegExpAst('x*')
 
   // [
   //   {
   //     type: 'repetition',
-  //     expr: { type: 'singleChar', character: 'a', isLiteral: true },
+  //     expr: { type: 'singleChar', character: 'x', isLiteral: true },
   //     limits: { min: 1, max: Infinity },
   //     isLazy: false,
   //     isPossessive: false,
   //   },
   // ]
-  const aOneOrMoreAst = buildRegExpAst('a+')
+  const oneOrMoreXsAst = buildRegExpAst('x+')
 
-  assertEquals(buildRegExpAst('(a*)*'), aZeroOrMoreAst)
-  assertEquals(buildRegExpAst('(a+)*'), aZeroOrMoreAst)
-  assertEquals(buildRegExpAst('(a?)*'), aZeroOrMoreAst)
-  assertEquals(buildRegExpAst('(a*)+'), aZeroOrMoreAst)
-  assertEquals(buildRegExpAst('(a+)+'), aOneOrMoreAst)
-  assertEquals(buildRegExpAst('(a?)+'), aZeroOrMoreAst)
-  assertEquals(buildRegExpAst('((((a*)*)*)*)*'), aZeroOrMoreAst)
-  assertEquals(buildRegExpAst('((((a+)+)+)+)+'), aOneOrMoreAst)
-  assertEquals(buildRegExpAst('((((a+)+)*)+)+'), aZeroOrMoreAst)
+  assertEquals(buildRegExpAst('(x*)*'), zeroOrMoreXsAst)
+  assertEquals(buildRegExpAst('(x+)*'), zeroOrMoreXsAst)
+  assertEquals(buildRegExpAst('(x?)*'), zeroOrMoreXsAst)
+  assertEquals(buildRegExpAst('(x*)+'), zeroOrMoreXsAst)
+  assertEquals(buildRegExpAst('(x+)+'), oneOrMoreXsAst)
+  assertEquals(buildRegExpAst('(x?)+'), zeroOrMoreXsAst)
+  assertEquals(buildRegExpAst('((((x*)*)*)*)*'), zeroOrMoreXsAst)
+  assertEquals(buildRegExpAst('((((x+)+)+)+)+'), oneOrMoreXsAst)
+  assertEquals(buildRegExpAst('((((x+)+)*)+)+'), zeroOrMoreXsAst)
 
   // And finally, (very) deep repetitions, mixing many quantifiers.
-  assertEquals(buildRegExpAst('(((((((((a*)+)?)*){,5}){0,2})?)*)?)+'), aZeroOrMoreAst)
-  assertEquals(buildRegExpAst('(((((((((a+){5,})+)+){2,})+)+){3,})+)+'), aOneOrMoreAst)
+  assertEquals(buildRegExpAst('(((((((((x*)+)?)*){,5}){0,2})?)*)?)+'), zeroOrMoreXsAst)
+  assertEquals(buildRegExpAst('(((((((((x+){5,})+)+){2,})+)+){3,})+)+'), oneOrMoreXsAst)
 })
 
 Deno.test('Problematic repetitions', () => {
