@@ -751,7 +751,6 @@ let matchNfaCount: number
 
 type MatchNfaReturnType = {
   matched: boolean
-  input: string
   index: number
   skipBacktrackingInNextAlternativeBranch?: boolean
 }
@@ -886,10 +885,10 @@ const matchNfa = (
     }
 
     case 'ENode':
-      return { matched: true, input, index }
+      return { matched: true, index }
 
     case 'FNode':
-      return { matched: false, input, index, skipBacktrackingInNextAlternativeBranch: true }
+      return { matched: false, index, skipBacktrackingInNextAlternativeBranch: true }
 
     default: {
       const exhaustiveCheck: never = currentNode
@@ -899,7 +898,7 @@ const matchNfa = (
 
   debug(() => `[input: '${input}', index: ${index}] No match!`)
 
-  return { matched: false, input, index }
+  return { matched: false, index }
 }
 
 type RegExpOptionsType = {
