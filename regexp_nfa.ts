@@ -270,10 +270,13 @@ const repetition: Parser<RepetitionType> = memoize(
   )
 )
 
+type FactorType = RepetitionType | SingleCharType | CharacterClassType | ParenthesizedType
+
 const factor: Parser<RegExpTokenType> = memoize(input => {
-  let result: SingleCharType | CharacterClassType | ParenthesizedType | RepetitionType | Error
+  let result: FactorType | Error
   let rest: string
   let repetitionsReduced: boolean
+
   ;[result, rest] = or4(repetition, singleChar, characterClass, parenthesized)(input)
 
   if (isError(result)) return [result, input]
@@ -287,9 +290,7 @@ const factor: Parser<RegExpTokenType> = memoize(input => {
   return [result, rest]
 })
 
-const reduceRepetitions = (
-  outerRepetition: SingleCharType | CharacterClassType | ParenthesizedType | RepetitionType
-): [boolean, SingleCharType | CharacterClassType | ParenthesizedType | RepetitionType] => {
+const reduceRepetitions = (regexpToken: FactorType): [boolean, FactorType] => {
   let reduced = false
 
   // Identify the following cases:
@@ -310,37 +311,41 @@ const reduceRepetitions = (
   // 5) N+ (notice this is the only case where the `+` is used, while all others use `*`)
   // 6) N*
 
-  if (
-    outerRepetition.type === 'repetition' &&
-    outerRepetition.limits.max === Infinity &&
-    outerRepetition.expr.type === 'parenthesized' &&
-    outerRepetition.expr.expr.length === 1
-  ) {
-    const innerRepetition = outerRepetition.expr.expr[0]
+  if (regexpToken.type === 'repetition') {
+    const outerRepetition = regexpToken
 
     if (
-      innerRepetition.type === 'repetition' &&
-      (innerRepetition.limits.min === 0 || innerRepetition.limits.max === Infinity)
+      outerRepetition.limits.max === Infinity &&
+      outerRepetition.expr.type === 'parenthesized' &&
+      outerRepetition.expr.expr.length === 1
     ) {
-      const minimumLimits = [outerRepetition.limits.min, innerRepetition.limits.min]
-      const maximumLimits = [outerRepetition.limits.max, innerRepetition.limits.max]
+      const innerToken = outerRepetition.expr.expr[0]
 
-      outerRepetition = { ...innerRepetition }
+      if (innerToken.type === 'repetition') {
+        const innerRepetition = innerToken
 
-      outerRepetition.limits = {
-        min:
-          minimumLimits.every(limit => limit >= 1) &&
-          maximumLimits.every(limit => limit === Infinity)
-            ? 1
-            : 0,
-        max: Infinity,
+        if (innerRepetition.limits.min === 0 || innerRepetition.limits.max === Infinity) {
+          const minimumLimits = [outerRepetition.limits.min, innerRepetition.limits.min]
+          const maximumLimits = [outerRepetition.limits.max, innerRepetition.limits.max]
+
+          regexpToken = { ...innerRepetition }
+
+          regexpToken.limits = {
+            min:
+              minimumLimits.every(limit => limit >= 1) &&
+              maximumLimits.every(limit => limit === Infinity)
+                ? 1
+                : 0,
+            max: Infinity,
+          }
+
+          reduced = true
+        }
       }
-
-      reduced = true
     }
   }
 
-  return [reduced, outerRepetition]
+  return [reduced, regexpToken]
 }
 
 const NEW_LINE = '\n'
