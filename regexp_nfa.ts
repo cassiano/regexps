@@ -70,7 +70,7 @@ type CharacterClassType = {
 type ParenthesizedType = {
   type: 'parenthesized'
   expr: RegExpType
-  isNonCapturingGroup: boolean
+  isCapturingGroup: boolean
 }
 type AlternationType = {
   type: 'alternation'
@@ -223,7 +223,7 @@ const parenthesized: Parser<ParenthesizedType> = memoize(
     ([nonCapturingGroupPrefix, expr]) => ({
       type: 'parenthesized' as const,
       expr,
-      isNonCapturingGroup: nonCapturingGroupPrefix !== EMPTY_STRING,
+      isCapturingGroup: nonCapturingGroupPrefix === EMPTY_STRING,
     })
   )
 )
