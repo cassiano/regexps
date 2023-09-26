@@ -9,13 +9,18 @@
 ```
 deno test regexp_nfa.ts
 
-running 6 tests from ./regexp_nfa.ts
-Basic behavior ... ok (66ms)
-Multi-level (> 2) repetitions ... ok (7ms)
-Anchors ... ok (15ms)
-scan() ... ok (21ms)
-jsMultiline on x off behavior ... ok (8ms)
-greedy x lazy behavior ... ok (7ms)
+running 9 tests from ./regexp_nfa.ts
+Repetitions ... ok (37ms)
+AST nodes of problematic repetitions ... ok (21ms)
+Problematic repetitions ... ok (9ms)
+Complex repetitions ... ok (56ms)
+Anchors ... ok (20ms)
+scan() ... ok (16ms)
+jsMultiline on x off behavior ... ok (10ms)
+Greedy (default) x lazy behavior ... ok (12ms)
+Backtrackable (default) x possessive behavior ... ok (10ms)
+
+ok | 9 passed | 0 failed (284ms)
 ```
 
 ### To use it in the REPL:
