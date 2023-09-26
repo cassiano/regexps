@@ -8,14 +8,15 @@ Please install Deno (https://docs.deno.com/runtime/manual/getting_started/instal
 
 ## Features include:
 
-- Greeedy match by default
-- Lazy and possessive modes fully supported
-- Really fast backtracking
-- Repetition quantifiers (e.g. \*, +, ?, {m,n}, {m,}, {,n}, {m})
+- Greeedy matches by default
+- Lazy and possessive match modes fully supported
+- Really fast backtracking, using an NFA
+- All repetition quantifiers (e.g. \*, +, ?, {m,n}, {m,}, {,n}, {m})
 - Alternations (e.g. 'a|b')
+- Parenthesized expressions (e.g. '(a|(bc)+)\*')
 - Character classes, both default (e.g. [a-z0-9]) and negated (e.g. [^a-z0-9])
 - Character class abbreviations, both default (e.g. \d, \w, \h etc) and negated (e.g. \D, W, \H etc)
-- Additional (non-standard) character class abbreviations (e.g. \o for Octal numbers, \y for binarY, \l for Lowercase characters, \u for Uppercase characters and \a for Alphabetic (lower or uppercase) characters)
+- Additional (non-standard) character class abbreviations (e.g. \o for Octal numbers, \y for binarY, \l for Lowercase characters, \u for Uppercase characters and \a for Alphabetic [lower or uppercase] characters)
 - Anchors (\b, ^ and $)
 - `scan()` function, for returning all matches of a regexp over a given string
 
