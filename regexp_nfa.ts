@@ -1132,7 +1132,7 @@ Deno.test('Complex repetitions', () => {
   }
 
   assertMatches('a*'.repeat(100), 'a'.repeat(100), '->' + 'a'.repeat(100) + '<-')
-  assertMatches(repeatedAs(50), 'a'.repeat(1000), '->' + 'a'.repeat(1000) + '<-')
+  assertMatches(repeatedAs(250), 'a'.repeat(1000), '->' + 'a'.repeat(1000) + '<-')
 
   assertMatches(
     '(((a*b)+c)?d,){2,3}',
