@@ -15,9 +15,9 @@ Please install Deno (https://docs.deno.com/runtime/manual/getting_started/instal
 - Alternations (e.g. 'a|b')
 - Character classes, both default (e.g. [a-z0-9]) and negated (e.g. [^a-z0-9])
 - Character class abbreviations, both default (e.g. \d, \w, \h etc) and negated (e.g. \D, W, \H etc)
-- Additional (non-standar) character class abbreviations (e.g. \o for octal numbers, \y for binary etc)
+- Additional (non-standard) character class abbreviations (e.g. \o for Octal numbers, \y for binarY, \l for Lowercase characters, \u for Uppercase characters and \a for Alphabetic (lower or uppercase) characters)
 - Anchors (\b, ^ and $)
-- scan() function, for returning all matches of a regexp over a given string
+- `scan()` function, for returning all matches of a regexp over a given string
 
 ## To run tests:
 
