@@ -382,6 +382,7 @@ type CNodeType = {
   next: NodeType
   nextAlt: NodeType
   branchingMode: CNodeBranchingModeType
+  possessiveWatermark?: number
 }
 
 // NNode ("Normal" terminal Node). Matches a single character. It always has one input path and
@@ -823,11 +824,13 @@ const matchNfa = (
           `[input: '${input}', index: ${index}] Trying CNode's #${currentNode.id}'s "${branch}" branch`
       )
 
+      if (currentNode.branchingMode === 'possessive') currentNode.possessiveWatermark = index
+
       let match = matchNfa(currentNode[branch], input, index, previousChar, options)
 
-      const charsConsumed = match.index - index
-
       if (match.matched) {
+        const charsConsumed = match.index - index
+
         debug(() => `>>>>> Match successful! Characters consumed: ${charsConsumed}`)
 
         return (
@@ -838,10 +841,9 @@ const matchNfa = (
           match
         )
       } else if (
-        !(
-          (currentNode.branchingMode === 'possessive' && !isEmptyInput) || // Treat an exceptional case at the end of a possessive repetition.
-          match.skipBacktrackingInNextAlternativeBranch
-        )
+        !match.skipBacktrackingInNextAlternativeBranch &&
+        // Checks if we reached the end of a possessive repetition.
+        (currentNode.branchingMode !== 'possessive' || index >= currentNode.possessiveWatermark!)
       ) {
         const branch = currentNode.branchingMode !== 'lazy' ? 'nextAlt' : 'next'
 
@@ -1275,7 +1277,7 @@ Deno.test('Backtrackable (default) x possessive behavior', () => {
   assertMatches('a++a', 'aaaa', NO_MATCH_MESSAGE)
 
   assertMatches('a+b', 'aaaab', '->aaaab<-')
-  // assertMatches('a++b', 'aaaab', '->aaaab<-')
+  assertMatches('a++b', 'aaaab', '->aaaab<-')
 
   assertMatches('a+ab', 'aaaab', '->aaaab<-')
   assertMatches('a++ab', 'aaaab', NO_MATCH_MESSAGE)
