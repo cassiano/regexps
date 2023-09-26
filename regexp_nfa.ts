@@ -270,7 +270,7 @@ const repetition: Parser<RepetitionType> = memoize(
   )
 )
 
-const factor: Parser<RegExpTokenType> = input => {
+const factor: Parser<RegExpTokenType> = memoize(input => {
   let result: SingleCharType | CharacterClassType | ParenthesizedType | RepetitionType | Error
   let rest: string
   ;[result, rest] = or4(repetition, singleChar, characterClass, parenthesized)(input)
@@ -319,7 +319,7 @@ const factor: Parser<RegExpTokenType> = input => {
   }
 
   return [result, rest]
-}
+})
 
 const NEW_LINE = '\n'
 
