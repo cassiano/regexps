@@ -329,7 +329,7 @@ const reduceRepetitions = (
 
       outerRepetition.limits = {
         min:
-          minimumLimits.every(limit => limit === 1) &&
+          minimumLimits.every(limit => limit >= 1) &&
           maximumLimits.every(limit => limit === Infinity)
             ? 1
             : 0,
