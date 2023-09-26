@@ -1047,102 +1047,41 @@ Deno.test('Repetitions', () => {
 Deno.test('AST nodes of problematic repetitions', () => {
   debugMode = false
 
-  // (N*)*
-  // (N+)*
-  // (N?)*
-  // (N*)+
-  // (N+)+
-  // (N?)+
+  // [
+  //   {
+  //     type: 'repetition',
+  //     expr: { type: 'singleChar', character: 'a', isLiteral: true },
+  //     limits: { min: 0, max: Infinity },
+  //     isLazy: false,
+  //     isPossessive: false,
+  //   },
+  // ]
+  const aZeroOrMoreAst = buildRegExpAst('a*')
 
-  assertEquals(buildRegExpAst('(a*)*'), [
-    {
-      type: 'repetition',
-      expr: { type: 'singleChar', character: 'a', isLiteral: true },
-      limits: { min: 0, max: Infinity },
-      isLazy: false,
-      isPossessive: false,
-    },
-  ])
+  // [
+  //   {
+  //     type: 'repetition',
+  //     expr: { type: 'singleChar', character: 'a', isLiteral: true },
+  //     limits: { min: 1, max: Infinity },
+  //     isLazy: false,
+  //     isPossessive: false,
+  //   },
+  // ]
+  const aOneOrMoreAst = buildRegExpAst('a+')
 
-  assertEquals(buildRegExpAst('(a+)*'), [
-    {
-      type: 'repetition',
-      expr: { type: 'singleChar', character: 'a', isLiteral: true },
-      limits: { min: 0, max: Infinity },
-      isLazy: false,
-      isPossessive: false,
-    },
-  ])
+  assertEquals(buildRegExpAst('(a*)*'), aZeroOrMoreAst)
+  assertEquals(buildRegExpAst('(a+)*'), aZeroOrMoreAst)
+  assertEquals(buildRegExpAst('(a?)*'), aZeroOrMoreAst)
+  assertEquals(buildRegExpAst('(a*)+'), aZeroOrMoreAst)
+  assertEquals(buildRegExpAst('(a+)+'), aOneOrMoreAst)
+  assertEquals(buildRegExpAst('(a?)+'), aZeroOrMoreAst)
+  assertEquals(buildRegExpAst('((((a*)*)*)*)*'), aZeroOrMoreAst)
+  assertEquals(buildRegExpAst('((((a+)+)+)+)+'), aOneOrMoreAst)
+  assertEquals(buildRegExpAst('((((a+)+)*)+)+'), aZeroOrMoreAst)
 
-  assertEquals(buildRegExpAst('(a?)*'), [
-    {
-      type: 'repetition',
-      expr: { type: 'singleChar', character: 'a', isLiteral: true },
-      limits: { min: 0, max: Infinity },
-      isLazy: false,
-      isPossessive: false,
-    },
-  ])
-
-  assertEquals(buildRegExpAst('(a*)+'), [
-    {
-      type: 'repetition',
-      expr: { type: 'singleChar', character: 'a', isLiteral: true },
-      limits: { min: 0, max: Infinity },
-      isLazy: false,
-      isPossessive: false,
-    },
-  ])
-
-  assertEquals(buildRegExpAst('(a+)+'), [
-    {
-      type: 'repetition',
-      expr: { type: 'singleChar', character: 'a', isLiteral: true },
-      limits: { min: 1, max: Infinity },
-      isLazy: false,
-      isPossessive: false,
-    },
-  ])
-
-  assertEquals(buildRegExpAst('(a?)+'), [
-    {
-      type: 'repetition',
-      expr: { type: 'singleChar', character: 'a', isLiteral: true },
-      limits: { min: 0, max: Infinity },
-      isLazy: false,
-      isPossessive: false,
-    },
-  ])
-
-  assertEquals(buildRegExpAst('((((a*)*)*)*)*'), [
-    {
-      type: 'repetition',
-      expr: { type: 'singleChar', character: 'a', isLiteral: true },
-      limits: { min: 0, max: Infinity },
-      isLazy: false,
-      isPossessive: false,
-    },
-  ])
-
-  assertEquals(buildRegExpAst('((((a+)+)+)+)+'), [
-    {
-      type: 'repetition',
-      expr: { type: 'singleChar', character: 'a', isLiteral: true },
-      limits: { min: 1, max: Infinity },
-      isLazy: false,
-      isPossessive: false,
-    },
-  ])
-
-  assertEquals(buildRegExpAst('((((a+)+)*)+)+'), [
-    {
-      type: 'repetition',
-      expr: { type: 'singleChar', character: 'a', isLiteral: true },
-      limits: { min: 0, max: Infinity },
-      isLazy: false,
-      isPossessive: false,
-    },
-  ])
+  // And finally, (very) deep repetitions, mixing many quantifiers.
+  assertEquals(buildRegExpAst('(((((((((a*)+)?)*){,5}){0,2})?)*)?)+'), aZeroOrMoreAst)
+  assertEquals(buildRegExpAst('(((((((((a+){5,})+)+){2,})+)+){3,})+)+'), aOneOrMoreAst)
 })
 
 Deno.test('Problematic repetitions', () => {
