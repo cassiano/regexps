@@ -270,75 +270,9 @@ const repetition: Parser<RepetitionType> = memoize(
   )
 )
 
-type FactorType = RepetitionType | SingleCharType | CharacterClassType | ParenthesizedType
-
-const factor: Parser<RegExpTokenType> = memoize(input => {
-  let result: FactorType | Error
-  let rest: string
-  let repetitionsReduced: boolean
-  ;[result, rest] = or4(repetition, singleChar, characterClass, parenthesized)(input)
-
-  if (isError(result)) return [result, input]
-
-  while (true) {
-    ;[repetitionsReduced, result] = reduceRepetitions(result)
-
-    if (!repetitionsReduced) break
-  }
-
-  return [result, rest]
-})
-
-// Identify the cases:
-//
-// (N*)*
-// (N+)*
-// (N?)*
-// (N{0,n})*, n > 1
-// (N*)+
-// (N?)+
-// (N{0,n})+, n > 1
-//
-// and replace them by `N*`.
-const reduceRepetitions = (regexpToken: FactorType): [boolean, FactorType] => {
-  let reduced = false
-
-  if (regexpToken.type === 'repetition') {
-    const outerRepetition = regexpToken
-
-    if (
-      outerRepetition.limits.min <= 1 &&
-      outerRepetition.limits.max === Infinity &&
-      outerRepetition.expr.type === 'parenthesized' &&
-      outerRepetition.expr.expr.length === 1 &&
-      !outerRepetition.isLazy &&
-      !outerRepetition.isPossessive
-    ) {
-      const innerToken = outerRepetition.expr.expr[0]
-
-      if (innerToken.type === 'repetition') {
-        const innerRepetition = innerToken
-
-        if (
-          outerRepetition.limits.min + innerRepetition.limits.min <= 1 &&
-          !innerRepetition.isLazy &&
-          !innerRepetition.isPossessive
-        ) {
-          regexpToken = { ...innerRepetition }
-
-          regexpToken.limits = {
-            min: 0,
-            max: Infinity,
-          }
-
-          reduced = true
-        }
-      }
-    }
-  }
-
-  return [reduced, regexpToken]
-}
+const factor: Parser<RegExpTokenType> = memoize(
+  or4(repetition, singleChar, characterClass, parenthesized)
+)
 
 const NEW_LINE = '\n'
 
@@ -401,7 +335,7 @@ type CNodeType = {
   next: NodeType
   nextAlt: NodeType
   branchingMode: CNodeBranchingModeType
-  possessiveWatermark?: number
+  watermark?: number
 }
 
 // NNode ("Normal" terminal Node). Matches a single character. It always has one input path and
@@ -744,6 +678,15 @@ const isWordChar = (char: SingleChar) => {
   )
 }
 
+const cNodeHasDirectOrIndirectAltNextPointingTo = (
+  originNode: CNodeType,
+  destinationNode: CNodeType
+): boolean =>
+  originNode === destinationNode ||
+  (originNode.branchingMode === 'default' &&
+    originNode.nextAlt.type === 'CNode' &&
+    cNodeHasDirectOrIndirectAltNextPointingTo(originNode.nextAlt, destinationNode))
+
 let matchNfaCount: number
 
 type MatchNfaReturnType = {
@@ -841,7 +784,25 @@ const matchNfa = (
           `[input: '${input}', index: ${index}] Trying CNode's #${currentNode.id}'s "${branch}" branch`
       )
 
-      if (currentNode.branchingMode === 'possessive') currentNode.possessiveWatermark = index
+      // Detect a possible infinite loop, when the current node's next node:
+      //
+      // 1) Is a CNode; and
+      // 2) Directly or indirectly points to the current node, by following its `nextAlt` branches; and
+      // 3) No characters have been consumed since the last call to the current node.
+      //
+      // PS: the `branchingMode` must be the default for all cases above.
+      if (currentNode.branchingMode === 'default')
+        if (
+          currentNode.next.type === 'CNode' &&
+          cNodeHasDirectOrIndirectAltNextPointingTo(currentNode.next, currentNode) &&
+          currentNode.watermark === index // No chars consumed!
+        )
+          return (
+            debug(() => '+++++ Infinite loop avoided +++++'),
+            matchNfa(currentNode.nextAlt, input, index, previousChar, options)
+          )
+
+      currentNode.watermark = index
 
       const match = matchNfa(currentNode[branch], input, index, previousChar, options)
 
@@ -860,7 +821,7 @@ const matchNfa = (
       } else if (
         !match.skipBacktrackingInNextAlternativeBranch &&
         // Checks if we reached the end of a possessive repetition.
-        (currentNode.branchingMode !== 'possessive' || index >= currentNode.possessiveWatermark!)
+        (currentNode.branchingMode !== 'possessive' || index >= currentNode.watermark!)
       ) {
         const branch = currentNode.branchingMode !== 'lazy' ? 'nextAlt' : 'next'
 
@@ -1036,63 +997,33 @@ Deno.test('Repetitions', () => {
   assertMatches('.*.*=.*', 'x=x', '->x=x<-')
 })
 
-Deno.test('AST nodes of problematic repetitions', () => {
-  debugMode = false
-
-  // [
-  //   {
-  //     type: 'repetition',
-  //     expr: { type: 'singleChar', character: 'a', isLiteral: true },
-  //     limits: { min: 0, max: Infinity },
-  //     isLazy: false,
-  //     isPossessive: false,
-  //   },
-  // ]
-  const zeroOrMoreAsAst = buildRegExpAst('a*')
-
-  assertEquals(buildRegExpAst('(a*)*'), zeroOrMoreAsAst)
-  assertEquals(buildRegExpAst('(a+)*'), zeroOrMoreAsAst)
-  assertEquals(buildRegExpAst('(a?)*'), zeroOrMoreAsAst)
-  assertEquals(buildRegExpAst('(a{0,999})*'), zeroOrMoreAsAst)
-  assertEquals(buildRegExpAst('(a*)+'), zeroOrMoreAsAst)
-  assertEquals(buildRegExpAst('(a?)+'), zeroOrMoreAsAst)
-  assertEquals(buildRegExpAst('(a{0,999})+'), zeroOrMoreAsAst)
-})
-
 Deno.test('Problematic repetitions', () => {
   debugMode = false
 
-  // Case (N+)+
   assertMatches('(a+)+', '', NO_MATCH_MESSAGE)
   assertMatches('(a+)+', 'aaaaa', '->aaaaa<-')
   assertMatches('(a+)+', 'baaaaa', 'b->aaaaa<-')
 
-  // Case (N+)*
   assertMatches('(a+)*', '', '-><-')
   assertMatches('(a+)*', 'aaaaa', '->aaaaa<-')
   assertMatches('(a+)*', 'baaaaa', '-><-baaaaa')
 
-  // Case (N*)*
   assertMatches('(a*)*', '', '-><-')
   assertMatches('(a*)*', 'aaaaa', '->aaaaa<-')
   assertMatches('(a*)*', 'baaaaa', '-><-baaaaa')
 
-  // Case (N*)+
   assertMatches('(a*)+', '', '-><-')
   assertMatches('(a*)+', 'aaaaa', '->aaaaa<-')
   assertMatches('(a*)+', 'baaaaa', '-><-baaaaa')
 
-  // Case (N?)*
   assertMatches('(a?)*', '', '-><-')
   assertMatches('(a?)*', 'aaaaa', '->aaaaa<-')
   assertMatches('(a?)*', 'baaaaa', '-><-baaaaa')
 
-  // Case (N?)+
   assertMatches('(a?)+', '', '-><-')
   assertMatches('(a?)+', 'aaaaa', '->aaaaa<-')
   assertMatches('(a?)+', 'baaaaa', '-><-baaaaa')
 
-  // Case (N{0,n})*
   assertMatches('(a{0,999})*', '', '-><-')
   assertMatches('(a{0,999})*', 'aaaaa', '->aaaaa<-')
   assertMatches('(a{0,999})*', 'baaaaa', '-><-baaaaa')
@@ -1101,6 +1032,26 @@ Deno.test('Problematic repetitions', () => {
   assertMatches('(a{0,999})+', '', '-><-')
   assertMatches('(a{0,999})+', 'aaaaa', '->aaaaa<-')
   assertMatches('(a{0,999})+', 'baaaaa', '-><-baaaaa')
+
+  assertMatches('(a*b*)*', '', '-><-')
+  assertMatches('(a*b*)*', 'aaaaabbb', '->aaaaabbb<-')
+  assertMatches('(a*b*)*', 'caaaaabbb', '-><-caaaaabbb')
+
+  assertMatches('(a?b*)*', '', '-><-')
+  assertMatches('(a?b*)*', 'abbb', '->abbb<-')
+  assertMatches('(a?b*)*', 'bbb', '->bbb<-')
+  assertMatches('(a?b*)*', 'caaaaabbb', '-><-caaaaabbb')
+
+  assertMatches('(a?b*)+', '', '-><-')
+  assertMatches('(a?b*)+', 'abbb', '->abbb<-')
+  assertMatches('(a?b*)+', 'bbb', '->bbb<-')
+  assertMatches('(a?b*)+', 'caaaaabbb', '-><-caaaaabbb')
+
+  assertMatches('(a?b*)?', '', '-><-')
+  assertMatches('(a?b*)?', 'abbb', '->abbb<-')
+  assertMatches('(a?b*)?', 'bbb', '->bbb<-')
+  assertMatches('(a?b*)?', 'abbbabbbbbb', '->abbb<-abbbbbb')
+  assertMatches('(a?b*)?', 'caaaaabbb', '-><-caaaaabbb')
 })
 
 Deno.test('Complex repetitions', () => {
