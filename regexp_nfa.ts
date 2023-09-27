@@ -123,7 +123,7 @@ const OPEN_BRACKETS = '{'
 const CLOSE_BRACKETS = '}'
 const OPEN_SQUARE_BRACKETS = '['
 const CLOSE_SQUARE_BRACKETS = ']'
-const WORD_BOUNDARY_CHAR = 'b'
+const UNESCAPED_WORD_BOUNDARY = 'b'
 
 const FORBIDDEN_AS_SINGLE_CHARS = [
   ...Object.keys(QUANTIFIERS),
@@ -144,7 +144,7 @@ const ALWAYS_ESCAPED_LITERAL_CHAR_MAPPINGS: { [key: SingleChar]: SingleChar } = 
 
 const NON_LITERAL_CHARS = {
   escaped: [
-    WORD_BOUNDARY_CHAR, // Word boundary anchor
+    UNESCAPED_WORD_BOUNDARY, // Word boundary anchor
   ],
   nonEscaped: [
     PERIOD, // Catch all (but new line)
@@ -754,7 +754,7 @@ const matchNfa = (
               )
             break
 
-          case WORD_BOUNDARY_CHAR: // A '\b' matches the (empty) string immediately before or after a "word".
+          case UNESCAPED_WORD_BOUNDARY: // A '\b' matches the (empty) string immediately before or after a "word".
             if (
               // Either it is a left boundary...
               ((isStartOfInput || !isWordChar(previousChar)) && isWordChar(currentChar)) ||
