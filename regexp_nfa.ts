@@ -678,13 +678,13 @@ const isWordChar = (char: SingleChar) => {
   )
 }
 
-const cNodeHasDirectOrIndirectAltNextPointingTo = (
+const cNodeAlternativelyPointsToDestinationCNode = (
   originNode: CNodeType,
   destinationNode: CNodeType
 ): boolean =>
   originNode === destinationNode ||
   (originNode.nextAlt.type === 'CNode' &&
-    cNodeHasDirectOrIndirectAltNextPointingTo(originNode.nextAlt, destinationNode))
+    cNodeAlternativelyPointsToDestinationCNode(originNode.nextAlt, destinationNode))
 
 let matchNfaCount: number
 
@@ -806,7 +806,7 @@ const matchNfa = (
       // regular expression, lambda."
       if (
         currentNode.next.type === 'CNode' &&
-        cNodeHasDirectOrIndirectAltNextPointingTo(currentNode.next, currentNode) &&
+        cNodeAlternativelyPointsToDestinationCNode(currentNode.next, currentNode) &&
         currentNode.watermark === index // No chars consumed!
       )
         return (
