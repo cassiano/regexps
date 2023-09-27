@@ -429,9 +429,7 @@ export const identifier = word
 
 export const sign = or(plus, minus)
 
-export const BASE_2 = 2
 export const BASE_10 = 10
-export const BASE_16 = 16
 
 export const natural = map(precededBy(optional(plus), digits), digs =>
   digs.reduce((acc, dig, i) => acc + dig * BASE_10 ** (digs.length - (i + 1)), 0)
