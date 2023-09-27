@@ -310,14 +310,20 @@ const reduceRepetitions = (regexpToken: FactorType): [boolean, FactorType] => {
       outerRepetition.limits.min <= 1 &&
       outerRepetition.limits.max === Infinity &&
       outerRepetition.expr.type === 'parenthesized' &&
-      outerRepetition.expr.expr.length === 1
+      outerRepetition.expr.expr.length === 1 &&
+      !outerRepetition.isLazy &&
+      !outerRepetition.isPossessive
     ) {
       const innerToken = outerRepetition.expr.expr[0]
 
       if (innerToken.type === 'repetition') {
         const innerRepetition = innerToken
 
-        if (outerRepetition.limits.min + innerRepetition.limits.min <= 1) {
+        if (
+          outerRepetition.limits.min + innerRepetition.limits.min <= 1 &&
+          !innerRepetition.isLazy &&
+          !innerRepetition.isPossessive
+        ) {
           regexpToken = { ...innerRepetition }
 
           regexpToken.limits = {
@@ -1045,8 +1051,12 @@ Deno.test('AST nodes of problematic repetitions', () => {
   const zeroOrMoreAsAst = buildRegExpAst('a*')
 
   assertEquals(buildRegExpAst('(a*)*'), zeroOrMoreAsAst)
+  assertEquals(buildRegExpAst('(a+)*'), zeroOrMoreAsAst)
   assertEquals(buildRegExpAst('(a?)*'), zeroOrMoreAsAst)
   assertEquals(buildRegExpAst('(a{0,999})*'), zeroOrMoreAsAst)
+  assertEquals(buildRegExpAst('(a*)+'), zeroOrMoreAsAst)
+  assertEquals(buildRegExpAst('(a?)+'), zeroOrMoreAsAst)
+  assertEquals(buildRegExpAst('(a{0,999})+'), zeroOrMoreAsAst)
 })
 
 Deno.test('Problematic repetitions', () => {
