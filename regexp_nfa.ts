@@ -1007,6 +1007,12 @@ Deno.test('Repetitions', () => {
   assertMatches('(x+x+)+y', 'xxxxxxxxxx', NO_MATCH_MESSAGE)
   assertMatches('(a+)*ab', 'aaaaaaaaaaaab', '->aaaaaaaaaaaab<-')
   assertMatches('.*.*=.*', 'x=x', '->x=x<-')
+  assertMatches(
+    '.*.*=.*',
+    'x=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+    '->x=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx<-'
+  )
+  assertMatches('.*.*=.*', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', NO_MATCH_MESSAGE)
 })
 
 Deno.test('Problematic repetitions', () => {
