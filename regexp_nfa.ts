@@ -479,6 +479,41 @@ const createNfaNodeFromCharacterClassRegExpToken = (
   astNode: CharacterClassType,
   nextNode: NodeType
 ): NodeType => {
+  // Notice below that:
+  //
+  // ▬▶[a]: initial state
+  // [b]▬▶: end states
+  // [F]▬▶: failed (end) state
+  // - [a], [b]: NNodes or CNodes
+  // - [0], [1], [2], [x], [y], [.], [\n]: NNodes only
+  // - [†]: CNode only
+  //
+  // Possible cases:
+  //
+  // a[0-2xy]b ≅ a[012xy]b: ▬▶[a] ⭢ [†] ⭢ [0] ──┬─⭢ [b]▬▶
+  //                                  ↓           |
+  //                                 [†] ⭢ [1] ──┤
+  //                                  ↓           |
+  //                                 [†] ⭢ [2] ──┤
+  //                                  ↓           |
+  //                                 [†] ⭢ [x] ──┤
+  //                                  |           |
+  //                                  └──⭢ [y] ──┛
+  //
+  // a[^0-2xy]b ≅ a[^012xy]b: ▬▶[a] ⭢ [†] ⭢ [0] ──┬─⭢ [F]▬▶
+  //                                    ↓           |
+  //                                   [†] ⭢ [1] ──┤
+  //                                    ↓           |
+  //                                   [†] ⭢ [2] ──┤
+  //                                    ↓           |
+  //                                   [†] ⭢ [x] ──┤
+  //                                    |           |
+  //                                   [†] ⭢ [y] ──┛
+  //                                    |
+  //                                   [†] ⭢ [.] ──┬─⭢ [b]▬▶
+  //                                    |           |
+  //                                    └──⭢ [\n] ─┛
+
   const options = mapCharacterClassOptions(astNode.options)
   let lastNode: NodeType = createNNode(options.at(-1)!, nextNode, true)
 
