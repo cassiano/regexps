@@ -785,9 +785,25 @@ const matchNfa = (
 
       // Detect a possible infinite loop, when the current node's next node:
       //
-      // 1) Is a CNode; and
-      // 2) Directly or indirectly points to the current node, by following its `nextAlt` branches; and
+      // 1) Is a CNode;
+      // 2) Directly or indirectly points to the current node, by following its `nextAlt` branches;
       // 3) No characters have been consumed since the last call to the current node.
+      //
+      // The above situation happens in regular expressions where the expression inside a pair of
+      // parentheses with infinite maximum limit (by using either `+` or `*`) could potentially match
+      // an empty string (''), e.g.:
+      //
+      // - (a*)*
+      // - (a?)*
+      // - (a*b{0,999}c?)*
+      // - (a*)+
+      // - (a*b?)+
+      // - (a*b?){2,}
+      // - etc
+      //
+      // It appears in Ken's article in the "Notes" section and is explained this way: "Code compiled
+      // for a** will go into a loop due to the closure operator on an operand containing the null
+      // regular expression, lambda."
       if (
         currentNode.next.type === 'CNode' &&
         cNodeHasDirectOrIndirectAltNextPointingTo(currentNode.next, currentNode) &&
