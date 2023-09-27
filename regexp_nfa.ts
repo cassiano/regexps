@@ -683,8 +683,7 @@ const cNodeHasDirectOrIndirectAltNextPointingTo = (
   destinationNode: CNodeType
 ): boolean =>
   originNode === destinationNode ||
-  (originNode.branchingMode === 'default' &&
-    originNode.nextAlt.type === 'CNode' &&
+  (originNode.nextAlt.type === 'CNode' &&
     cNodeHasDirectOrIndirectAltNextPointingTo(originNode.nextAlt, destinationNode))
 
 let matchNfaCount: number
@@ -789,18 +788,15 @@ const matchNfa = (
       // 1) Is a CNode; and
       // 2) Directly or indirectly points to the current node, by following its `nextAlt` branches; and
       // 3) No characters have been consumed since the last call to the current node.
-      //
-      // PS: the `branchingMode` must be the default for all cases above.
-      if (currentNode.branchingMode === 'default')
-        if (
-          currentNode.next.type === 'CNode' &&
-          cNodeHasDirectOrIndirectAltNextPointingTo(currentNode.next, currentNode) &&
-          currentNode.watermark === index // No chars consumed!
+      if (
+        currentNode.next.type === 'CNode' &&
+        cNodeHasDirectOrIndirectAltNextPointingTo(currentNode.next, currentNode) &&
+        currentNode.watermark === index // No chars consumed!
+      )
+        return (
+          debug(() => '+++++ Infinite loop avoided +++++'),
+          matchNfa(currentNode.nextAlt, input, index, previousChar, options)
         )
-          return (
-            debug(() => '+++++ Infinite loop avoided +++++'),
-            matchNfa(currentNode.nextAlt, input, index, previousChar, options)
-          )
 
       currentNode.watermark = index
 
@@ -1000,13 +996,17 @@ Deno.test('Repetitions', () => {
 Deno.test('Problematic repetitions', () => {
   debugMode = false
 
-  assertMatches('(a+)+', '', NO_MATCH_MESSAGE)
-  assertMatches('(a+)+', 'aaaaa', '->aaaaa<-')
-  assertMatches('(a+)+', 'baaaaa', 'b->aaaaa<-')
+  ////////////////////////////
+  // Default branching mode //
+  ////////////////////////////
 
   assertMatches('(a+)*', '', '-><-')
   assertMatches('(a+)*', 'aaaaa', '->aaaaa<-')
   assertMatches('(a+)*', 'baaaaa', '-><-baaaaa')
+
+  assertMatches('(a+)+', '', NO_MATCH_MESSAGE)
+  assertMatches('(a+)+', 'aaaaa', '->aaaaa<-')
+  assertMatches('(a+)+', 'baaaaa', 'b->aaaaa<-')
 
   assertMatches('(a*)*', '', '-><-')
   assertMatches('(a*)*', 'aaaaa', '->aaaaa<-')
@@ -1028,7 +1028,6 @@ Deno.test('Problematic repetitions', () => {
   assertMatches('(a{0,999})*', 'aaaaa', '->aaaaa<-')
   assertMatches('(a{0,999})*', 'baaaaa', '-><-baaaaa')
 
-  // Case (N{0,n})+
   assertMatches('(a{0,999})+', '', '-><-')
   assertMatches('(a{0,999})+', 'aaaaa', '->aaaaa<-')
   assertMatches('(a{0,999})+', 'baaaaa', '-><-baaaaa')
@@ -1052,6 +1051,68 @@ Deno.test('Problematic repetitions', () => {
   assertMatches('(a?b*)?', 'bbb', '->bbb<-')
   assertMatches('(a?b*)?', 'abbbabbbbbb', '->abbb<-abbbbbb')
   assertMatches('(a?b*)?', 'caaaaabbb', '-><-caaaaabbb')
+
+  ///////////////
+  // Lazy mode //
+  ///////////////
+
+  assertMatches('(a+)*?', '', '-><-')
+  assertMatches('(a+)+?', '', NO_MATCH_MESSAGE)
+  assertMatches('(a*)*?', '', '-><-')
+  assertMatches('(a*)+?', '', '-><-')
+  assertMatches('(a?)*?', '', '-><-')
+  assertMatches('(a?)+?', '', '-><-')
+  assertMatches('(a{0,999})*?', '', '-><-')
+  assertMatches('(a{0,999})+?', '', '-><-')
+
+  assertMatches('(a+?)*', '', '-><-')
+  assertMatches('(a+?)+', '', NO_MATCH_MESSAGE)
+  assertMatches('(a*?)*', '', '-><-')
+  assertMatches('(a*?)+', '', '-><-')
+  assertMatches('(a??)*', '', '-><-')
+  assertMatches('(a??)+', '', '-><-')
+  assertMatches('(a{0,999}?)*', '', '-><-')
+  assertMatches('(a{0,999}?)+', '', '-><-')
+
+  assertMatches('(a+?)*?', '', '-><-')
+  assertMatches('(a+?)+?', '', NO_MATCH_MESSAGE)
+  assertMatches('(a*?)*?', '', '-><-')
+  assertMatches('(a*?)+?', '', '-><-')
+  assertMatches('(a??)*?', '', '-><-')
+  assertMatches('(a??)+?', '', '-><-')
+  assertMatches('(a{0,999}?)*?', '', '-><-')
+  assertMatches('(a{0,999}?)+?', '', '-><-')
+
+  /////////////////////
+  // Possessive mode //
+  /////////////////////
+
+  assertMatches('(a+)*+', '', '-><-')
+  assertMatches('(a+)++', '', NO_MATCH_MESSAGE)
+  assertMatches('(a*)*+', '', '-><-')
+  assertMatches('(a*)++', '', '-><-')
+  assertMatches('(a?)*+', '', '-><-')
+  assertMatches('(a?)++', '', '-><-')
+  assertMatches('(a{0,999})*+', '', '-><-')
+  assertMatches('(a{0,999})++', '', '-><-')
+
+  assertMatches('(a++)*', '', '-><-')
+  assertMatches('(a++)+', '', NO_MATCH_MESSAGE)
+  assertMatches('(a*+)*', '', '-><-')
+  assertMatches('(a*+)+', '', '-><-')
+  assertMatches('(a?+)*', '', '-><-')
+  assertMatches('(a?+)+', '', '-><-')
+  assertMatches('(a{0,999}+)*', '', '-><-')
+  assertMatches('(a{0,999}+)+', '', '-><-')
+
+  assertMatches('(a++)*+', '', '-><-')
+  assertMatches('(a++)++', '', NO_MATCH_MESSAGE)
+  assertMatches('(a*+)*+', '', '-><-')
+  assertMatches('(a*+)++', '', '-><-')
+  assertMatches('(a?+)*+', '', '-><-')
+  assertMatches('(a?+)++', '', '-><-')
+  assertMatches('(a{0,999}+)*+', '', '-><-')
+  assertMatches('(a{0,999}+)++', '', '-><-')
 })
 
 Deno.test('Complex repetitions', () => {
