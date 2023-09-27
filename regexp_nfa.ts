@@ -482,11 +482,12 @@ const createNfaNodeFromCharacterClassRegExpToken = (
   // Notice below that:
   //
   // ▬▶[a]: initial state
-  // [b]▬▶: end states
-  // [F]▬▶: failed (end) state
+  // [b]▬▶: successful end state
+  // [F]▬▶: failed end state
+  // - [†]: CNode only
   // - [a], [b]: NNodes or CNodes
   // - [0], [1], [2], [x], [y], [.], [\n]: NNodes only
-  // - [†]: CNode only
+  // - .|\n: matches anything
   //
   // Possible cases:
   //
@@ -507,9 +508,9 @@ const createNfaNodeFromCharacterClassRegExpToken = (
   //                                   [†] ⭢ [2] ──┤
   //                                    ↓           |
   //                                   [†] ⭢ [x] ──┤
-  //                                    |           |
+  //                                    ↓           |
   //                                   [†] ⭢ [y] ──┛
-  //                                    |
+  //                                    ↓
   //                                   [†] ⭢ [.] ──┬─⭢ [b]▬▶
   //                                    |           |
   //                                    └──⭢ [\n] ─┛
@@ -545,7 +546,7 @@ const createNfaNodeFromRepetitionRegExpToken = (
   // Notice below that:
   //
   // ▬▶[a] or ▬▶[†]: initial states
-  // [b]▬▶ or ◀▬[b]: end states
+  // [b]▬▶ or ◀▬[b]: successful end state
   // - [a], [b]: NNodes or CNodes
   // - [†]: CNode only
   // - m, n: natural numbers
