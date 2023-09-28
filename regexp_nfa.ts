@@ -335,7 +335,7 @@ type CNodeType = {
   next: NodeType
   nextAlt: NodeType
   branchingMode: CNodeBranchingModeType
-  watermark?: number
+  waterline?: number
 }
 
 // NNode ("Normal" terminal Node). Matches a single character. It always has one input path and
@@ -866,14 +866,14 @@ const matchNfa = (
       // regular expression, lambda."
       if (
         cNodeAllowsMatchingEmptyString(currentNode) &&
-        currentNode.watermark === index // No chars consumed!
+        currentNode.waterline === index // No chars consumed!
       )
         return (
           debug(() => '+++++ Infinite loop avoided +++++'),
           matchNfa(currentNode.nextAlt, input, index, previousChar, options)
         )
 
-      currentNode.watermark = index
+      currentNode.waterline = index
 
       const match = matchNfa(currentNode[branch], input, index, previousChar, options)
 
@@ -890,9 +890,10 @@ const matchNfa = (
           match
         )
       } else if (
+        // Negated character class not matched?
         !match.skipBacktrackingInNextAlternativeBranch &&
         // Checks if we reached the end of a possessive repetition.
-        (currentNode.branchingMode !== 'possessive' || index >= currentNode.watermark!)
+        (currentNode.branchingMode !== 'possessive' || index >= currentNode.waterline)
       ) {
         const branch = currentNode.branchingMode !== 'lazy' ? 'nextAlt' : 'next'
 
