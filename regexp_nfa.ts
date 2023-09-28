@@ -724,16 +724,24 @@ const isWordChar = (char: SingleChar) => {
   )
 }
 
-const cNodeHasAlternativeBranchPointingToDestinationCNode = (
-  originNode: CNodeType,
+const nodeCycleAllowsMatchingEmptyString = (
+  originNode: NodeType,
   destinationNode: CNodeType
 ): boolean =>
+  // Origin node has finally reached the destination node in a cycle/loop?
   originNode === destinationNode ||
-  (originNode.nextAlt.type === 'CNode' &&
-    cNodeHasAlternativeBranchPointingToDestinationCNode(originNode.nextAlt, destinationNode))
+  // Is a CNode with an alternative branch which reaches the destination node?
+  (originNode.type === 'CNode' &&
+    nodeCycleAllowsMatchingEmptyString(originNode.nextAlt, destinationNode)) ||
+  // Is an NNode which contains a non-literal (and no char-consuming) anchor with a default branch
+  // which reaches the destination node?
+  (originNode.type === 'NNode' &&
+    !originNode.isLiteral &&
+    [CARET, DOLLAR_SIGN, UNESCAPED_WORD_BOUNDARY].includes(originNode.character) &&
+    nodeCycleAllowsMatchingEmptyString(originNode.next, destinationNode))
 
-const cNodeMatchesEmptyString = (node: CNodeType): boolean =>
-  node.next.type === 'CNode' && cNodeHasAlternativeBranchPointingToDestinationCNode(node.next, node)
+const cNodeAllowsMatchingEmptyString = (node: CNodeType): boolean =>
+  nodeCycleAllowsMatchingEmptyString(node.next, node)
 
 let matchNfaCount: number
 
@@ -854,7 +862,7 @@ const matchNfa = (
       // for a** will go into a loop due to the closure operator on an operand containing the null
       // regular expression, lambda."
       if (
-        cNodeMatchesEmptyString(currentNode) &&
+        cNodeAllowsMatchingEmptyString(currentNode) &&
         currentNode.watermark === index // No chars consumed!
       )
         return (
