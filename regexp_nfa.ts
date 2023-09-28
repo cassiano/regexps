@@ -483,7 +483,7 @@ const createNfaNodeFromCharacterClassRegExpToken = (
   //
   // ▬▶[a]: initial state
   // [b]▬▶: successful end state
-  // [F]▬▶: failed end state
+  // [F]▬▶: failed state
   // [†]: CNode only
   // [a], [b]: NNodes or CNodes
   // [0], [1], [2], [x], [y], [.], [\n]: NNodes only
