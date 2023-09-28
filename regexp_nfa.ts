@@ -1183,6 +1183,11 @@ Deno.test('Repetitions which can potentially match an empty string', () => {
   assertMatches('(a?+)++', '', '-><-')
   assertMatches('(a{0,9}+)*+', '', '-><-')
   assertMatches('(a{0,9}+)++', '', '-><-')
+
+  assertMatches('(((a*)+)+)+', '', '-><-')
+  assertMatches('(((a*)+)+)+', 'a', '->a<-')
+  assertMatches('(((a*)+)+)+', 'ba', '-><-ba')
+  assertMatches('(((a*)+)+)+', 'aaaaaaaaaaaaaaaaa', '->aaaaaaaaaaaaaaaaa<-')
 })
 
 Deno.test('Complex repetitions', () => {
