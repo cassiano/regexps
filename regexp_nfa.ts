@@ -842,9 +842,10 @@ const matchNfa = (
 
       // Detect a possible infinite loop, when the current node's next node:
       //
-      // - Is a CNode, which directly or indirectly points to the current node, by following its `nextAlt` branch; or
-      // - Is an NNode containing an anchor (^, $ or /b) which directly or indirectly points to the
-      //   current node, by following its `next` branch; and
+      // - Is a CNode, which directly or indirectly points to the current node, by following its
+      //   `nextAlt` branch; or
+      // - Is an NNode containing an anchor (^, $ or /b), which directly or indirectly points to the
+      //   current node, by following its `next` branch; and (in both cases)
       // - No characters have been consumed since the last call to the current node.
       //
       // The above situation happens in regular expressions where the expression inside a pair of
