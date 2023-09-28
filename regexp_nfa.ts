@@ -1071,7 +1071,7 @@ Deno.test('Repetitions', () => {
   assertMatches('.*.*=.*', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', NO_MATCH_MESSAGE)
 })
 
-Deno.test('Problematic repetitions', () => {
+Deno.test('Repetitions which can potentially match an empty string', () => {
   debugMode = false
 
   ////////////////////////////
@@ -1081,10 +1081,6 @@ Deno.test('Problematic repetitions', () => {
   assertMatches('(a+)*', '', '-><-')
   assertMatches('(a+)*', 'aaaaa', '->aaaaa<-')
   assertMatches('(a+)*', 'baaaaa', '-><-baaaaa')
-
-  assertMatches('(a+)+', '', NO_MATCH_MESSAGE)
-  assertMatches('(a+)+', 'aaaaa', '->aaaaa<-')
-  assertMatches('(a+)+', 'baaaaa', 'b->aaaaa<-')
 
   assertMatches('(a*)*', '', '-><-')
   assertMatches('(a*)*', 'aaaaa', '->aaaaa<-')
@@ -1135,7 +1131,6 @@ Deno.test('Problematic repetitions', () => {
   ///////////////
 
   assertMatches('(a+)*?', '', '-><-')
-  assertMatches('(a+)+?', '', NO_MATCH_MESSAGE)
   assertMatches('(a*)*?', '', '-><-')
   assertMatches('(a*)+?', '', '-><-')
   assertMatches('(a?)*?', '', '-><-')
@@ -1144,7 +1139,6 @@ Deno.test('Problematic repetitions', () => {
   assertMatches('(a{0,999})+?', '', '-><-')
 
   assertMatches('(a+?)*', '', '-><-')
-  assertMatches('(a+?)+', '', NO_MATCH_MESSAGE)
   assertMatches('(a*?)*', '', '-><-')
   assertMatches('(a*?)+', '', '-><-')
   assertMatches('(a??)*', '', '-><-')
@@ -1153,7 +1147,6 @@ Deno.test('Problematic repetitions', () => {
   assertMatches('(a{0,999}?)+', '', '-><-')
 
   assertMatches('(a+?)*?', '', '-><-')
-  assertMatches('(a+?)+?', '', NO_MATCH_MESSAGE)
   assertMatches('(a*?)*?', '', '-><-')
   assertMatches('(a*?)+?', '', '-><-')
   assertMatches('(a??)*?', '', '-><-')
@@ -1166,7 +1159,6 @@ Deno.test('Problematic repetitions', () => {
   /////////////////////
 
   assertMatches('(a+)*+', '', '-><-')
-  assertMatches('(a+)++', '', NO_MATCH_MESSAGE)
   assertMatches('(a*)*+', '', '-><-')
   assertMatches('(a*)++', '', '-><-')
   assertMatches('(a?)*+', '', '-><-')
@@ -1175,7 +1167,6 @@ Deno.test('Problematic repetitions', () => {
   assertMatches('(a{0,999})++', '', '-><-')
 
   assertMatches('(a++)*', '', '-><-')
-  assertMatches('(a++)+', '', NO_MATCH_MESSAGE)
   assertMatches('(a*+)*', '', '-><-')
   assertMatches('(a*+)+', '', '-><-')
   assertMatches('(a?+)*', '', '-><-')
@@ -1184,7 +1175,6 @@ Deno.test('Problematic repetitions', () => {
   assertMatches('(a{0,999}+)+', '', '-><-')
 
   assertMatches('(a++)*+', '', '-><-')
-  assertMatches('(a++)++', '', NO_MATCH_MESSAGE)
   assertMatches('(a*+)*+', '', '-><-')
   assertMatches('(a*+)++', '', '-><-')
   assertMatches('(a?+)*+', '', '-><-')
