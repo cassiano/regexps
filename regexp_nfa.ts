@@ -785,6 +785,14 @@ const matchNfa = (
           )
       } else {
         switch (currentNode.character) {
+          case PERIOD: // A '.' matches anything but the new line (\n).
+            if (currentChar !== NEW_LINE && !isEmptyInput)
+              return (
+                debug(() => 'Matched!'),
+                matchNfa(currentNode.next, input, index + 1, currentChar, options)
+              )
+            break
+
           case CARET: // A '^' matches the start of the input string or of each individual line.
             if (options.jsMultiline ? isStartOfInput || previousChar === '\n' : isStartOfInput)
               return (
@@ -799,14 +807,6 @@ const matchNfa = (
               return (
                 debug(() => 'Matched!'),
                 matchNfa(currentNode.next, input, index, previousChar, options)
-              )
-            break
-
-          case PERIOD: // A '.' matches anything but the new line (\n).
-            if (currentChar !== NEW_LINE && !isEmptyInput)
-              return (
-                debug(() => 'Matched!'),
-                matchNfa(currentNode.next, input, index + 1, currentChar, options)
               )
             break
 
