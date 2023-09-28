@@ -842,9 +842,10 @@ const matchNfa = (
 
       // Detect a possible infinite loop, when the current node's next node:
       //
-      // 1) Is a CNode;
-      // 2) Directly or indirectly points to the current node, by following its `nextAlt` branches;
-      // 3) No characters have been consumed since the last call to the current node.
+      // - Is a CNode, which directly or indirectly points to the current node, by following its `nextAlt` branch; or
+      // - Is an NNode containing an anchor (^, $ or /b) which directly or indirectly points to the
+      //   current node, by following its `next` branch; and
+      // - No characters have been consumed since the last call to the current node.
       //
       // The above situation happens in regular expressions where the expression inside a pair of
       // parentheses with infinite maximum limit (by using either `+` or `*`) could potentially match
@@ -856,6 +857,7 @@ const matchNfa = (
       // - (a*)+
       // - (a*b?)+
       // - (a*b?){2,}
+      // - (a*b?^$\b){2,}
       // - etc
       //
       // It appears in Ken's article in the "Notes" section and is explained this way: "Code compiled
