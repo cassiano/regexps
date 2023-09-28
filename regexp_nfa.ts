@@ -724,13 +724,16 @@ const isWordChar = (char: SingleChar) => {
   )
 }
 
-const cNodeAlternativelyPointsToDestinationCNode = (
+const cNodeHasAlternativeBranchPointingToDestinationCNode = (
   originNode: CNodeType,
   destinationNode: CNodeType
 ): boolean =>
   originNode === destinationNode ||
   (originNode.nextAlt.type === 'CNode' &&
-    cNodeAlternativelyPointsToDestinationCNode(originNode.nextAlt, destinationNode))
+    cNodeHasAlternativeBranchPointingToDestinationCNode(originNode.nextAlt, destinationNode))
+
+const cNodeMatchesEmptyString = (node: CNodeType): boolean =>
+  node.next.type === 'CNode' && cNodeHasAlternativeBranchPointingToDestinationCNode(node.next, node)
 
 let matchNfaCount: number
 
@@ -851,8 +854,7 @@ const matchNfa = (
       // for a** will go into a loop due to the closure operator on an operand containing the null
       // regular expression, lambda."
       if (
-        currentNode.next.type === 'CNode' &&
-        cNodeAlternativelyPointsToDestinationCNode(currentNode.next, currentNode) &&
+        cNodeMatchesEmptyString(currentNode) &&
         currentNode.watermark === index // No chars consumed!
       )
         return (
