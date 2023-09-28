@@ -714,7 +714,7 @@ export const buildNfaFromRegExp = (
   return nfa
 }
 
-const isWordChar = (char: SingleChar) => {
+const isWordChar = memoize((char: SingleChar) => {
   const upcasedChar = char.toUpperCase()
 
   return (
@@ -722,26 +722,26 @@ const isWordChar = (char: SingleChar) => {
     (upcasedChar >= '0' && upcasedChar <= '9') ||
     upcasedChar === '_'
   )
-}
+})
 
-const nodeCycleAllowsMatchingEmptyString = (
-  originNode: NodeType,
-  destinationNode: CNodeType
-): boolean =>
-  // Origin node has finally reached the destination node in a cycle/loop?
-  originNode === destinationNode ||
-  // Is a CNode with an alternative branch which reaches the destination node?
-  (originNode.type === 'CNode' &&
-    nodeCycleAllowsMatchingEmptyString(originNode.nextAlt, destinationNode)) ||
-  // Is an NNode which contains a non-literal (and no char-consuming) anchor with a default branch
-  // which reaches the destination node?
-  (originNode.type === 'NNode' &&
-    !originNode.isLiteral &&
-    [CARET, DOLLAR_SIGN, UNESCAPED_WORD_BOUNDARY].includes(originNode.character) &&
-    nodeCycleAllowsMatchingEmptyString(originNode.next, destinationNode))
+const nodeCycleAllowsMatchingEmptyString = memoize(
+  (originNode: NodeType, destinationNode: CNodeType): boolean =>
+    // Origin node has finally reached the destination node in a cycle/loop?
+    originNode === destinationNode ||
+    // Is a CNode with an alternative branch which reaches the destination node?
+    (originNode.type === 'CNode' &&
+      nodeCycleAllowsMatchingEmptyString(originNode.nextAlt, destinationNode)) ||
+    // Is an NNode which contains a non-literal (and no char-consuming) anchor with a default branch
+    // which reaches the destination node?
+    (originNode.type === 'NNode' &&
+      !originNode.isLiteral &&
+      [CARET, DOLLAR_SIGN, UNESCAPED_WORD_BOUNDARY].includes(originNode.character) &&
+      nodeCycleAllowsMatchingEmptyString(originNode.next, destinationNode))
+)
 
-const cNodeAllowsMatchingEmptyString = (node: CNodeType): boolean =>
+const cNodeAllowsMatchingEmptyString = memoize((node: CNodeType): boolean =>
   nodeCycleAllowsMatchingEmptyString(node.next, node)
+)
 
 let matchNfaCount: number
 
