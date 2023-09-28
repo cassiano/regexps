@@ -866,7 +866,7 @@ const matchNfa = (
       // regular expression, lambda."
       if (
         cNodeAllowsMatchingEmptyString(currentNode) &&
-        currentNode.waterline === index // No chars consumed!
+        currentNode.waterline === index // No chars consumed in previous match attempt.
       )
         return (
           debug(() => '+++++ Infinite loop avoided +++++'),
