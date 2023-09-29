@@ -1388,12 +1388,12 @@ export const asGraphviz = async (regExpAsString: string, showIds = false): Promi
     switch (node.type) {
       case 'CNode':
         return [
-          `${label(node, true)} -> ${label(node.next, true)} [label=" next      "]`,
-          `${label(node, true)} -> ${label(node.nextAlt, true)} [label=" nextAlt      "]`,
+          `  ${label(node, true)} -> ${label(node.next, true)} [label=" next      "]`,
+          `  ${label(node, true)} -> ${label(node.nextAlt, true)} [label=" nextAlt      "]`,
         ]
 
       case 'NNode':
-        return [`${label(node, true)} -> ${label(node.next, true)} [label=" next      "]`]
+        return [`  ${label(node, true)} -> ${label(node.next, true)} [label=" next      "]`]
 
       case 'ENode':
       case 'FNode':
@@ -1403,28 +1403,37 @@ export const asGraphviz = async (regExpAsString: string, showIds = false): Promi
 
   let dot = 'digraph {\n'
 
-  dot += `labelloc="t";\nlabel="/${regExpAsString.replaceAll('\\', '\\\\')}/";\n`
-  dot += `start -> ${label(nfa, true)};\n`
-  dot += nodes.flatMap(edges).join(';\n') + ';\n'
-  dot += 'start [shape=circle, style=filled, color=gray, fontcolor=white];\n'
-  dot += 'end [shape=doublecircle, style=filled, color=orange];\n'
+  dot += '  labelloc="t";\n'
+  dot += `  label="/${regExpAsString.replaceAll('\\', '\\\\')}/";\n\n`
 
-  if (fNodeExists) dot += 'fail [shape=circle, style=filled, color=red];\n'
+  dot += `  start -> ${label(nfa, true)};\n`
+  dot += nodes.flatMap(edges).join(';\n') + ';\n\n'
 
-  dot += cNodes
-    .map(node => label(node, true) + ` [label=${label(node, showIds)}, shape=rect, color=blue];`)
-    .join('\n')
+  dot += '  start [shape=circle, style=filled, color=gray, fontcolor=white];\n'
+  dot += '  end [shape=doublecircle, style=filled, color=orange];\n'
 
-  dot += nNodes
-    .map(
-      node =>
-        label(node, true) +
-        ` [label=${label(
-          node,
-          showIds
-        )}, shape=ellipse, color=darkgreen, style=filled, fontcolor=white];`
-    )
-    .join('\n')
+  if (fNodeExists) dot += '  fail [shape=circle, style=filled, color=red];\n'
+
+  dot +=
+    cNodes
+      .map(
+        node =>
+          '  ' + label(node, true) + ` [label=${label(node, showIds)}, shape=rect, color=blue];`
+      )
+      .join('\n') + '\n'
+
+  dot +=
+    nNodes
+      .map(
+        node =>
+          '  ' +
+          label(node, true) +
+          ` [label=${label(
+            node,
+            showIds
+          )}, shape=ellipse, color=darkgreen, style=filled, fontcolor=white];`
+      )
+      .join('\n') + '\n'
 
   dot += '}'
 
