@@ -1362,21 +1362,21 @@ export const visit = <T>(
   }
 }
 
-export const asGraphviz = async (regExpAsString: string): Promise<void> => {
+export const asGraphviz = async (regExpAsString: string, showIds = false): Promise<void> => {
   const nfa = buildNfaFromRegExp(regExpAsString)
   const nodes: NodeType[] = visit(nfa)
   const cNodes = nodes.filter(node => node.type === 'CNode')
   const nNodes = nodes.filter(node => node.type === 'NNode')
   const fNodeExists = nodes.some(node => node.type === 'FNode')
 
-  const label = (node: NodeType) => {
+  const label = (node: NodeType, showIds = false) => {
     switch (node.type) {
       case 'CNode':
-        return `"† (${node.id})"`
+        return `"†${showIds ? ` (${node.id})` : ''}"`
       case 'NNode':
-        return `"${node.character !== '\n' ? node.character : '\\\\n'} (${node.id})${
-          node.isLiteral ? '' : '\n(non-literal)'
-        }"`
+        return `"${node.character.replaceAll('\n', '\\n').replaceAll('\\', '\\\\')}${
+          showIds ? ` (${node.id})` : ''
+        }${node.isLiteral ? '' : '\n(non-literal)'}"`
       case 'ENode':
         return 'end'
       case 'FNode':
@@ -1388,12 +1388,12 @@ export const asGraphviz = async (regExpAsString: string): Promise<void> => {
     switch (node.type) {
       case 'CNode':
         return [
-          `${label(node)} -> ${label(node.next)} [label=" next      "]`,
-          `${label(node)} -> ${label(node.nextAlt)} [label=" nextAlt      "]`,
+          `${label(node, true)} -> ${label(node.next, true)} [label=" next      "]`,
+          `${label(node, true)} -> ${label(node.nextAlt, true)} [label=" nextAlt      "]`,
         ]
 
       case 'NNode':
-        return [`${label(node)} -> ${label(node.next)} [label=" next      "]`]
+        return [`${label(node, true)} -> ${label(node.next, true)} [label=" next      "]`]
 
       case 'ENode':
       case 'FNode':
@@ -1404,21 +1404,27 @@ export const asGraphviz = async (regExpAsString: string): Promise<void> => {
   let dot = 'digraph {\n'
 
   dot += `labelloc="t";\nlabel="/${regExpAsString.replaceAll('\\', '\\\\')}/";\n`
-  dot += `start -> ${label(nfa)}\n`
-  dot += nodes.flatMap(edges).join('\n') + '\n'
+  dot += `start -> ${label(nfa, true)};\n`
+  dot += nodes.flatMap(edges).join(';\n') + ';\n'
   dot += 'start [style=filled, color=gray, fontcolor=white];\n'
   dot += 'end [shape=doublecircle, style=filled, color=orange];\n'
 
   if (fNodeExists) dot += 'fail [style=filled, color=red];\n'
 
-  if (cNodes.length > 0) dot += cNodes.map(label).join(', ') + ' [shape=rect, color=blue]\n'
+  dot += cNodes
+    .map(node => label(node, true) + ` [label=${label(node, showIds)}, shape=rect, color=blue];`)
+    .join('\n')
 
-  if (nNodes.length > 0)
-    dot +=
-      nodes
-        .filter(node => node.type === 'NNode')
-        .map(label)
-        .join(', ') + ' [shape=ellipse, color=darkgreen, style=filled, fontcolor=white]\n'
+  dot += nNodes
+    .map(
+      node =>
+        label(node, true) +
+        ` [label=${label(
+          node,
+          showIds
+        )}, shape=ellipse, color=darkgreen, style=filled, fontcolor=white];`
+    )
+    .join('\n')
 
   dot += '}'
 
