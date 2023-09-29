@@ -1322,6 +1322,8 @@ declare const Deno: {
   inspect: (...args: unknown[]) => void
   test: (title: string, testFn: () => void) => void
   stdin: { read: (...args: unknown[]) => void }
+  writeTextFile: (filename: string, contents: string) => Promise<void>
+  run: (options: { cmd: string[] }) => { status: (...args: unknown[]) => Promise<void> }
 }
 
 export const log = console.log
@@ -1333,6 +1335,99 @@ export const inspect = (value: any) =>
 export const print = (value: object) => log(inspect(value))
 
 export const showRegExp = (regExpAsString: string) => print(buildRegExpAst(regExpAsString))
+
+export const visit = <T>(
+  node: NodeType,
+  fn?: (node: NodeType) => T,
+  breadcrumbs: NodeType[] = []
+): (T | NodeType)[] => {
+  if (breadcrumbs.indexOf(node) >= 0) return []
+
+  breadcrumbs.push(node)
+
+  const result: T | NodeType = (fn ?? (node => node))(node)
+
+  switch (node.type) {
+    case 'CNode':
+      return [result]
+        .concat(visit(node.next, fn, breadcrumbs))
+        .concat(visit(node.nextAlt, fn, breadcrumbs))
+
+    case 'NNode':
+      return [result].concat(visit(node.next, fn, breadcrumbs))
+
+    case 'ENode':
+    case 'FNode':
+      return [result]
+  }
+}
+
+export const asGraphviz = async (regExpAsString: string): Promise<void> => {
+  const nfa = buildNfaFromRegExp(regExpAsString)
+  const nodes: NodeType[] = visit(nfa)
+  const cNodes = nodes.filter(node => node.type === 'CNode')
+  const nNodes = nodes.filter(node => node.type === 'NNode')
+  const fNodeExists = nodes.some(node => node.type === 'FNode')
+
+  const label = (node: NodeType) => {
+    switch (node.type) {
+      case 'CNode':
+        return `"† (${node.id})"`
+      case 'NNode':
+        return `"${node.character !== '\n' ? node.character : '\\\\n'} (${node.id})${
+          node.isLiteral ? '' : '\n(non-literal)'
+        }"`
+      case 'ENode':
+        return 'end'
+      case 'FNode':
+        return 'fail'
+    }
+  }
+
+  const edges = (node: NodeType): string[] => {
+    switch (node.type) {
+      case 'CNode':
+        return [
+          `${label(node)} -> ${label(node.next)} [label=" next      "]`,
+          `${label(node)} -> ${label(node.nextAlt)} [label=" nextAlt      "]`,
+        ]
+
+      case 'NNode':
+        return [`${label(node)} -> ${label(node.next)} [label=" next      "]`]
+
+      case 'ENode':
+      case 'FNode':
+        return []
+    }
+  }
+
+  let dot = 'digraph {\n'
+
+  dot += `labelloc="t";\nlabel="/${regExpAsString}/";\n`
+  dot += `start -> ${label(nfa)}\n`
+  dot += nodes.flatMap(edges).join('\n') + '\n'
+  dot += 'start [style=filled, color=gray, fontcolor=white];\n'
+  dot += 'end [shape=doublecircle, style=filled, color=orange];\n'
+
+  if (fNodeExists) dot += 'fail [style=filled, color=red];\n'
+
+  if (cNodes.length > 0) dot += cNodes.map(label).join(', ') + ' [shape=rect, color=blue]\n'
+
+  if (nNodes.length > 0)
+    dot +=
+      nodes
+        .filter(node => node.type === 'NNode')
+        .map(label)
+        .join(', ') + ' [shape=ellipse, color=darkgreen, style=filled, fontcolor=white]\n'
+
+  dot += '}'
+
+  await Deno.writeTextFile('graphviz/regexp.dot', dot)
+  await Deno.run({
+    cmd: ['dot', '-Tpng', 'graphviz/regexp.dot', '-o', 'graphviz/regexp.png'],
+  }).status()
+  await Deno.run({ cmd: ['open', 'graphviz/regexp.png'] }).status()
+}
 
 export const times = <T>(n: number, fn: (index: number) => T): T[] => [...Array(n).keys()].map(fn)
 
