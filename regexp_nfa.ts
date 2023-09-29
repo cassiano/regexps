@@ -1406,10 +1406,10 @@ export const asGraphviz = async (regExpAsString: string, showIds = false): Promi
   dot += `labelloc="t";\nlabel="/${regExpAsString.replaceAll('\\', '\\\\')}/";\n`
   dot += `start -> ${label(nfa, true)};\n`
   dot += nodes.flatMap(edges).join(';\n') + ';\n'
-  dot += 'start [style=filled, color=gray, fontcolor=white];\n'
+  dot += 'start [shape=circle, style=filled, color=gray, fontcolor=white];\n'
   dot += 'end [shape=doublecircle, style=filled, color=orange];\n'
 
-  if (fNodeExists) dot += 'fail [style=filled, color=red];\n'
+  if (fNodeExists) dot += 'fail [shape=circle, style=filled, color=red];\n'
 
   dot += cNodes
     .map(node => label(node, true) + ` [label=${label(node, showIds)}, shape=rect, color=blue];`)
