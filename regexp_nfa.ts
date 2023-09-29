@@ -1403,7 +1403,7 @@ export const asGraphviz = async (regExpAsString: string): Promise<void> => {
 
   let dot = 'digraph {\n'
 
-  dot += `labelloc="t";\nlabel="/${regExpAsString}/";\n`
+  dot += `labelloc="t";\nlabel="/${regExpAsString.replaceAll('\\', '\\\\')}/";\n`
   dot += `start -> ${label(nfa)}\n`
   dot += nodes.flatMap(edges).join('\n') + '\n'
   dot += 'start [style=filled, color=gray, fontcolor=white];\n'
