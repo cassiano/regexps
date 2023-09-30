@@ -1409,7 +1409,7 @@ export const asGraphviz = async (regExpAsString: string, showIds = false): Promi
   dot += `  start -> ${label(nfa, true)};\n`
   dot += nodes.flatMap(edges).join(';\n') + ';\n\n'
 
-  dot += '  start [shape=circle, style=filled, color=gray, fontcolor=white];\n'
+  dot += '  start [shape=circle, style=filled, color=gray, fontcolor=black];\n'
   dot += '  end [shape=doublecircle, style=filled, color=orange];\n'
 
   if (fNodeExists) dot += '  fail [shape=circle, style=filled, color=red];\n'
