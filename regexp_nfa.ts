@@ -1362,21 +1362,26 @@ export const visit = <T>(
   }
 }
 
-export const asGraphviz = async (regExpAsString: string, showIds = false): Promise<void> => {
+export const asGraphviz = async (
+  regExpAsString: string,
+  { showIds = false, topToBottom = false }
+): Promise<NodeType> => {
   const nfa = buildNfaFromRegExp(regExpAsString)
   const nodes: NodeType[] = visit(nfa)
   const cNodes = nodes.filter(node => node.type === 'CNode')
   const nNodes = nodes.filter(node => node.type === 'NNode')
-  const fNodeExists = nodes.some(node => node.type === 'FNode')
+  const fNodeIsPresent = nodes.some(node => node.type === 'FNode')
 
   const label = (node: NodeType, showIds = false) => {
+    const optionalNodeId = showIds ? ` (${node.id})` : ''
+
     switch (node.type) {
       case 'CNode':
-        return `"†${showIds ? ` (${node.id})` : ''}"`
+        return `"†${optionalNodeId}"`
       case 'NNode':
-        return `"${node.character.replaceAll('\n', '\\n').replaceAll('\\', '\\\\')}${
-          showIds ? ` (${node.id})` : ''
-        }${node.isLiteral ? '' : '\n(non-literal)'}"`
+        return `"${node.character
+          .replaceAll('\n', '\\n')
+          .replaceAll('\\', '\\\\')}${optionalNodeId}${node.isLiteral ? '' : '\n(non-literal)'}"`
       case 'ENode':
         return 'end'
       case 'FNode':
@@ -1384,35 +1389,56 @@ export const asGraphviz = async (regExpAsString: string, showIds = false): Promi
     }
   }
 
+  const SPACES_AFTER_EDGE_LABEL_WHEN_TOP_BOTTOM = 3
+  const LINES_BEFORE_EDGE_LABEL_WHEN_LEFT_RIGHT = 2
+
+  const edgeLabel = (branch: string) =>
+    topToBottom
+      ? branch + ' '.repeat(SPACES_AFTER_EDGE_LABEL_WHEN_TOP_BOTTOM)
+      : '\n'.repeat(LINES_BEFORE_EDGE_LABEL_WHEN_LEFT_RIGHT) + branch
+
   const edges = (node: NodeType): string[] => {
+    const labels = {
+      node: label(node, true),
+      nodeNext: 'next' in node ? label(node.next, true) : '',
+      nodeNextAlt: 'nextAlt' in node ? label(node.nextAlt, true) : '',
+    }
+
+    const edges = {
+      nodeToNext: `  ${labels.node} -> ${labels.nodeNext} [label="${edgeLabel('next')}"]`,
+      nodeToNextAlt: `  ${labels.node} -> ${labels.nodeNextAlt} [label="${edgeLabel('nextAlt')}"]`,
+    }
+
     switch (node.type) {
       case 'CNode':
-        return [
-          `  ${label(node, true)} -> ${label(node.next, true)} [label=" next      "]`,
-          `  ${label(node, true)} -> ${label(node.nextAlt, true)} [label=" nextAlt      "]`,
-        ]
-
+        return [edges.nodeToNext, edges.nodeToNextAlt]
       case 'NNode':
-        return [`  ${label(node, true)} -> ${label(node.next, true)} [label=" next      "]`]
-
+        return [edges.nodeToNext]
       case 'ENode':
       case 'FNode':
         return []
     }
   }
 
-  let dot = 'digraph {\n'
+  // https://graphviz.org/doc/info/attrs.html
+  let dot = ''
+
+  dot += 'digraph {\n'
+  dot += '  dpi=192;\n'
+  dot += `  rankdir=${topToBottom ? 'TB' : 'LR'};\n`
 
   dot += '  labelloc="t";\n'
   dot += `  label="/${regExpAsString.replaceAll('\\', '\\\\')}/";\n\n`
 
+  dot += '  # Node edges\n'
   dot += `  start -> ${label(nfa, true)};\n`
   dot += nodes.flatMap(edges).join(';\n') + ';\n\n'
 
+  dot += '  # Node labels, shapes, colors etc\n'
   dot += '  start [shape=circle, style=filled, color=gray, fontcolor=black];\n'
   dot += '  end [shape=doublecircle, style=filled, color=orange];\n'
 
-  if (fNodeExists) dot += '  fail [shape=circle, style=filled, color=red];\n'
+  if (fNodeIsPresent) dot += '  fail [shape=circle, style=filled, color=red];\n'
 
   dot +=
     cNodes
@@ -1442,6 +1468,8 @@ export const asGraphviz = async (regExpAsString: string, showIds = false): Promi
     cmd: ['dot', '-Tpng', 'graphviz/regexp.dot', '-o', 'graphviz/regexp.png'],
   }).status()
   await Deno.run({ cmd: ['open', 'graphviz/regexp.png'] }).status()
+
+  return nfa
 }
 
 export const times = <T>(n: number, fn: (index: number) => T): T[] => [...Array(n).keys()].map(fn)
