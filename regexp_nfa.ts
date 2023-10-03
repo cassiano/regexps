@@ -369,7 +369,7 @@ let cNodeCount = 0
 
 const createNNode = (character: SingleChar, next: NodeType, isLiteral: boolean): NNodeType => ({
   type: 'NNode',
-  id: nNodeCount++,
+  id: cNodeCount + nNodeCount++,
   character,
   isLiteral,
   next,
@@ -381,7 +381,7 @@ const createCNode = (
   branchingMode: CNodeBranchingModeType = 'default'
 ): CNodeType => ({
   type: 'CNode',
-  id: cNodeCount++,
+  id: nNodeCount + cNodeCount++,
   next,
   nextAlt,
   branchingMode,
