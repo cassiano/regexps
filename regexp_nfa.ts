@@ -530,7 +530,7 @@ const createNfaNodeFromCharacterClassRegExpToken = (
 
   if (astNode.negated) {
     const periodNode = createNNode(PERIOD, nextNode, false) // All but "\n"
-    const newLineNode = createNNode(NEW_LINE, nextNode, false) // Only "\n"
+    const newLineNode = createNNode(NEW_LINE, nextNode, true) // Only "\n"
     const catchAllNode = createCNode(periodNode, newLineNode)
 
     lastNode.next = failedNode // FNode means "no match!".
@@ -1379,9 +1379,9 @@ export const asGraphviz = async (
       case 'CNode':
         return `"†${optionalNodeId}"`
       case 'NNode':
-        return `"${node.character
+        return `"'${node.character
           .replaceAll('\n', '\\n')
-          .replaceAll('\\', '\\\\')}${optionalNodeId}${node.isLiteral ? '' : '\n(non-literal)'}"`
+          .replaceAll('\\', '\\\\')}'${optionalNodeId}${node.isLiteral ? '' : '\n(non-literal)'}"`
       case 'ENode':
         return 'end'
       case 'FNode':
@@ -1483,3 +1483,223 @@ const debug = (messageOrFalse: () => string | false): void => {
     log(message)
   }
 }
+
+// ------------------------------------------------------------------------------------------------
+
+class FailedNodeReached extends Error {}
+
+const findNextMatchableNonCNodes = (
+  node: NodeType,
+  breadcrumbs: NodeType[] = []
+): (NNodeType | ENodeType)[] => {
+  // Avoid an infinite loop when node already visited!
+  if (breadcrumbs.indexOf(node) >= 0) return []
+
+  breadcrumbs.push(node)
+
+  switch (node.type) {
+    case 'CNode':
+      return findNextMatchableNonCNodes(node.next, breadcrumbs).concat(
+        findNextMatchableNonCNodes(node.nextAlt, breadcrumbs)
+      )
+
+    case 'FNode':
+      throw new FailedNodeReached()
+
+    default:
+      return [node]
+  }
+}
+
+const removeDuplicates = <T>(collection: T[]): T[] => [...new Set(collection)]
+
+export const findMatches = (
+  currentChar: SingleChar,
+  previousChar: SingleChar,
+  isStartOfInput: boolean,
+  isEndOfInput: boolean,
+  nodes: (NNodeType | ENodeType)[],
+  options: RegExpOptionsType,
+  list: (NNodeType | ENodeType)[] = []
+): (NNodeType | ENodeType)[] => {
+  const isEmptyInput = currentChar === ''
+
+  return removeDuplicates(
+    nodes.flatMap(currentNode => {
+      if (list.indexOf(currentNode) >= 0) return list
+
+      debug(
+        () =>
+          `[currentChar: '${currentChar}'] Trying to match against node ${nodeAsString(
+            currentNode
+          )}`
+      )
+
+      switch (currentNode.type) {
+        case 'NNode': {
+          if (currentNode.isLiteral) {
+            return currentNode.character === currentChar
+              ? (debug(() => 'Matched'), list.concat(findNextMatchableNonCNodes(currentNode.next)))
+              : (debug(() => 'Not matched'), list)
+          } else {
+            switch (currentNode.character) {
+              case PERIOD: // A '.' matches anything but the new line (\n).
+                return !isEmptyInput && currentChar !== NEW_LINE
+                  ? (debug(() => 'Matched'),
+                    list.concat(findNextMatchableNonCNodes(currentNode.next)))
+                  : (debug(() => 'Not matched'), list)
+
+              case CARET: // A '^' matches the start of the input string or of each individual line.
+                return (
+                  options.jsMultiline ? isStartOfInput || previousChar === '\n' : isStartOfInput
+                )
+                  ? (debug(() => 'Matched!'),
+                    list.concat(
+                      findMatches(
+                        currentChar,
+                        previousChar,
+                        isStartOfInput,
+                        isEndOfInput,
+                        findNextMatchableNonCNodes(currentNode.next),
+                        options,
+                        list
+                      )
+                    ))
+                  : (debug(() => 'Not matched'), list)
+
+              case DOLLAR_SIGN: // A '$' matches the end of the input string or of each individual line.
+                return (options.jsMultiline ? isEmptyInput || currentChar === '\n' : isEmptyInput)
+                  ? (debug(() => 'Matched!'),
+                    list.concat(
+                      findMatches(
+                        currentChar,
+                        previousChar,
+                        isStartOfInput,
+                        isEndOfInput,
+                        findNextMatchableNonCNodes(currentNode.next),
+                        options,
+                        list
+                      )
+                    ))
+                  : (debug(() => 'Not matched'), list)
+
+              case UNESCAPED_WORD_BOUNDARY: // A '\b' matches the (empty) string immediately before or after a "word".
+                return (
+                  // Either it is a left boundary...
+                  ((isStartOfInput || !isWordChar(previousChar)) && isWordChar(currentChar)) ||
+                    // ...or a right boundary.
+                    ((isEmptyInput || !isWordChar(currentChar)) && isWordChar(previousChar))
+                    ? (debug(() => 'Matched!'),
+                      list.concat(
+                        findMatches(
+                          currentChar,
+                          previousChar,
+                          isStartOfInput,
+                          isEndOfInput,
+                          findNextMatchableNonCNodes(currentNode.next),
+                          options,
+                          list
+                        )
+                      ))
+                    : (debug(() => 'Not matched'), list)
+                )
+
+              default:
+                throw new Error(`Invalid non-literal character '${currentNode.character}'`)
+            }
+          }
+        }
+
+        case 'ENode':
+          return currentChar === ''
+            ? (debug(() => 'Matched'), list.concat(currentNode))
+            : (debug(() => 'Not matched'), list)
+      }
+    })
+  )
+}
+
+export const matchFromIndex = (
+  nfa: NodeType,
+  input: string,
+  startIndex: number,
+  options: RegExpOptionsType
+): MatchFromNfaReturnType => {
+  let list = findNextMatchableNonCNodes(nfa)
+  let endIndex: number | undefined = undefined
+
+  // The 1st list having the end node means that the regexp matches an empty string ('').
+  if (list.indexOf(endNode) >= 0) endIndex = startIndex - 1 // endIndex < startIndex = empty string.
+
+  for (let index = startIndex; index <= input.length; index++) {
+    const previousChar = index === 0 ? '' : input[index - 1]
+    const isStartOfInput = index === 0
+    const isEndOfInput = index === input.length
+
+    debug(() => `index: ${index}`)
+    debug(() => 'list before findMatches(): ' + inspect(list.map(nodeAsString)))
+
+    const currentChar = !isEndOfInput ? input[index] : ''
+
+    try {
+      list = findMatches(currentChar, previousChar, isStartOfInput, isEndOfInput, list, options)
+    } catch (err) {
+      if (err instanceof FailedNodeReached) break
+    }
+
+    debug(() => 'list after findMatches(): ' + inspect(list.map(nodeAsString)))
+
+    if (list.length === 0) break // No further matches.
+
+    // Match found?
+    if (list.indexOf(endNode) >= 0) {
+      // Increment the end index in order to include the current character.
+      endIndex = index
+
+      if (isEndOfInput) endIndex--
+    }
+
+    debug(() => inspect({ index, startIndex, endIndex }))
+  }
+
+  return endIndex !== undefined
+    ? {
+        match: [
+          input.slice(0, startIndex),
+          '->',
+          input.slice(startIndex, endIndex + 1),
+          '<-',
+          input.slice(endIndex + 1),
+        ].join(EMPTY_STRING),
+        start: startIndex,
+        end: endIndex,
+      }
+    : NO_MATCH_MESSAGE
+}
+
+export const match = (
+  nfa: NodeType,
+  input: string,
+  options: RegExpOptionsType = { jsMultiline: true }
+) => {
+  let match: MatchFromNfaReturnType | undefined = undefined
+
+  for (let startIndex = 0; startIndex < Math.max(1, input.length); startIndex++) {
+    match = matchFromIndex(nfa, input, startIndex, options)
+
+    if (match !== NO_MATCH_MESSAGE) break
+  }
+
+  return match
+}
+
+// https://dl.acm.org/doi/epdf/10.1145/363347.363387
+// import * as re from './regexp_nfa.ts'
+// const n = 5; const nfa = await re.asGraphviz('a?'.repeat(n) + 'a'.repeat(n), { showIds: true, topToBottom: false }); console.log(re.match(nfa, 'a'.repeat(n)))
+// const n = 5, m = 10; const nfa = await re.asGraphviz('a*'.repeat(n), { showIds: true, topToBottom: false }); console.log(re.match(nfa, 'a'.repeat(m)))
+// const nfa = await re.asGraphviz('(is+)+', { showIds: true, topToBottom: false }); console.log(re.match(nfa, 'mississipi'))
+// const nfa = await re.asGraphviz('a+', { showIds: true, topToBottom: false }); console.log(re.match(nfa, 'aaa'))
+// const nfa = await re.asGraphviz('a+', { showIds: true, topToBottom: false }); console.log(re.match(nfa, ''))
+// const nfa = await re.asGraphviz('a*', { showIds: true, topToBottom: false }); console.log(re.match(nfa, 'aaa'))
+// const nfa = await re.asGraphviz('a*', { showIds: true, topToBottom: false }); console.log(re.match(nfa, ''))
+// const nfa = await re.asGraphviz('a*', { showIds: true, topToBottom: false }); console.log(re.match(nfa, 'baa'))
