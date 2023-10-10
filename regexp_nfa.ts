@@ -962,7 +962,7 @@ type MatchFromNfaReturnType =
     }
   | typeof NO_MATCH_MESSAGE
 
-const match_v1 = (
+export const match_v1 = (
   nfa: NodeType,
   input: string,
   {
@@ -1511,6 +1511,7 @@ class FailedNodeReached extends Error {}
 
 const successorTerminalNodes = (
   node: NodeType,
+  skipCaretAndDollarAnchorNodes = false,
   breadcrumbs: NodeType[] = []
 ): (NNodeType | ENodeType)[] => {
   // Avoid an infinite loop when node already visited!
@@ -1520,12 +1521,19 @@ const successorTerminalNodes = (
 
   switch (node.type) {
     case 'CNode':
-      return successorTerminalNodes(node.next, breadcrumbs).concat(
-        successorTerminalNodes(node.nextAlt, breadcrumbs)
+      return successorTerminalNodes(node.next, skipCaretAndDollarAnchorNodes, breadcrumbs).concat(
+        successorTerminalNodes(node.nextAlt, skipCaretAndDollarAnchorNodes, breadcrumbs)
       )
 
     case 'FNode':
       throw new FailedNodeReached()
+
+    case 'NNode':
+      return skipCaretAndDollarAnchorNodes &&
+        !node.isLiteral &&
+        [CARET, DOLLAR_SIGN].includes(node.character)
+        ? successorTerminalNodes(node.next, skipCaretAndDollarAnchorNodes, breadcrumbs)
+        : [node]
 
     default:
       return [node]
@@ -1534,7 +1542,7 @@ const successorTerminalNodes = (
 
 const removeDuplicates = <T>(collection: T[]): T[] => [...new Set(collection)]
 
-const findSuccessorNodesTreatingLiteralDollarNode = (
+const findSuccessorNodesTreatingLiteralDollarAnchorNode = (
   currentNode: NNodeType,
   nextChar: SingleChar,
   options: RegExpOptionsType
@@ -1590,7 +1598,7 @@ export const findMatches = (
             return currentNode.character === currentChar
               ? (debug(() => 'Matched'),
                 newNodeList.concat(
-                  findSuccessorNodesTreatingLiteralDollarNode(currentNode, nextChar, options)
+                  findSuccessorNodesTreatingLiteralDollarAnchorNode(currentNode, nextChar, options)
                 ))
               : (debug(() => 'Not matched'), newNodeList)
           } else {
@@ -1599,7 +1607,11 @@ export const findMatches = (
                 return currentChar !== NEW_LINE
                   ? (debug(() => 'Matched'),
                     newNodeList.concat(
-                      findSuccessorNodesTreatingLiteralDollarNode(currentNode, nextChar, options)
+                      findSuccessorNodesTreatingLiteralDollarAnchorNode(
+                        currentNode,
+                        nextChar,
+                        options
+                      )
                     ))
                   : (debug(() => 'Not matched'), newNodeList)
 
@@ -1615,7 +1627,11 @@ export const findMatches = (
                         previousChar,
                         currentChar,
                         nextChar,
-                        findSuccessorNodesTreatingLiteralDollarNode(currentNode, nextChar, options),
+                        findSuccessorNodesTreatingLiteralDollarAnchorNode(
+                          currentNode,
+                          nextChar,
+                          options
+                        ),
                         options,
                         newNodeList
                       )
@@ -1670,13 +1686,14 @@ export const matchFromIndex = (
   startIndex: number,
   options: BuildNfaFromRegExpAndMatchOptionsType
 ): MatchFromNfaReturnType => {
-  let nodeList = successorTerminalNodes(nfa)
   let endIndex: number | undefined = undefined
 
-  // The 1st list having the end node means that the regexp matches an empty string ('').
-  if (nodeList.indexOf(endNode) >= 0) endIndex = startIndex - 1 // endIndex < startIndex = empty string.
+  // The initial list having the end node means that the regexp matches an empty string ('').
+  if (successorTerminalNodes(nfa, true).indexOf(endNode) >= 0) endIndex = startIndex - 1 // endIndex < startIndex = empty string.
 
   debug(() => inspect({ startIndex, endIndex }))
+
+  let nodeList = successorTerminalNodes(nfa)
 
   for (let index = startIndex; index < input.length; index++) {
     const previousChar = index === 0 ? '' : input[index - 1]
@@ -1772,11 +1789,11 @@ export const scan_v2 = (
 
 // https://dl.acm.org/doi/epdf/10.1145/363347.363387
 // import * as re from './regexp_nfa.ts'
-// const n = 5; const nfa = await re.asGraphviz('a?'.repeat(n) + 'a'.repeat(n), { showIds: true, topToBottom: false }); console.log(re.match(nfa, 'a'.repeat(n)))
-// const n = 5, m = 10; const nfa = await re.asGraphviz('a*'.repeat(n), { showIds: true, topToBottom: false }); console.log(re.match(nfa, 'a'.repeat(m)))
-// const nfa = await re.asGraphviz('(is+)+', { showIds: true, topToBottom: false }); console.log(re.match(nfa, 'mississipi'))
-// const nfa = await re.asGraphviz('a+', { showIds: true, topToBottom: false }); console.log(re.match(nfa, 'aaa'))
-// const nfa = await re.asGraphviz('a+', { showIds: true, topToBottom: false }); console.log(re.match(nfa, ''))
-// const nfa = await re.asGraphviz('a*', { showIds: true, topToBottom: false }); console.log(re.match(nfa, 'aaa'))
-// const nfa = await re.asGraphviz('a*', { showIds: true, topToBottom: false }); console.log(re.match(nfa, ''))
-// const nfa = await re.asGraphviz('a*', { showIds: true, topToBottom: false }); console.log(re.match(nfa, 'baa'))
+// const n = 5; const nfa = await re.asGraphviz('a?'.repeat(n) + 'a'.repeat(n), { showIds: true, topToBottom: false }); console.log(re.match_v2(nfa, 'a'.repeat(n)))
+// const n = 5, m = 10; const nfa = await re.asGraphviz('a*'.repeat(n), { showIds: true, topToBottom: false }); console.log(re.match_v2(nfa, 'a'.repeat(m)))
+// const nfa = await re.asGraphviz('(is+)+', { showIds: true, topToBottom: false }); console.log(re.match_v2(nfa, 'mississipi'))
+// const nfa = await re.asGraphviz('a+', { showIds: true, topToBottom: false }); console.log(re.match_v2(nfa, 'aaa'))
+// const nfa = await re.asGraphviz('a+', { showIds: true, topToBottom: false }); console.log(re.match_v2(nfa, ''))
+// const nfa = await re.asGraphviz('a*', { showIds: true, topToBottom: false }); console.log(re.match_v2(nfa, 'aaa'))
+// const nfa = await re.asGraphviz('a*', { showIds: true, topToBottom: false }); console.log(re.match_v2(nfa, ''))
+// const nfa = await re.asGraphviz('a*', { showIds: true, topToBottom: false }); console.log(re.match_v2(nfa, 'baa'))
