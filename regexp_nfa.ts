@@ -1026,7 +1026,7 @@ export const scan_v1 = (
 
     matches.push(match.match)
 
-    startIndex = match.end + 1
+    startIndex = match.end >= match.start ? match.end + 1 : startIndex + 1
   }
 
   return matches.flat()
@@ -1036,18 +1036,7 @@ export const scan_v1 = (
 // Tests //
 ///////////
 
-// const assertMatches = (
-//   regExpAsString: string,
-//   input: string,
-//   matchedResult: string,
-//   options: BuildNfaFromRegExpAndMatchOptionsType = {}
-// ) => {
-//   const matchData = match1(regExpAsString, input, { ...options, arrows: true })
-
-//   assertEquals(typeof matchData === 'string' ? matchData : matchData.match, matchedResult)
-// }
-
-const assertMatches = (
+const assertMatches_v1 = (
   regExpAsString: string,
   input: string,
   matchedResult: string,
@@ -1057,157 +1046,157 @@ const assertMatches = (
     printNodes: options.printNodes,
   })
 
-  const matchData = match_v2(nfa, input, { ...options, arrows: true })
+  const matchData = match_v1(nfa, input, { ...options, arrows: true })
 
   assertEquals(typeof matchData === 'string' ? matchData : matchData?.match, matchedResult)
 }
 
-Deno.test('Repetitions', () => {
+Deno.test('Repetitions (v1)', () => {
   debugMode = false
 
-  assertMatches('an+', 'banana', 'b->an<-ana')
-  assertMatches('(an)+', 'banana', 'b->anan<-a')
-  assertMatches('iss', 'mississipi', 'm->iss<-issipi')
-  assertMatches('(iss)+', 'mississipi', 'm->ississ<-ipi')
-  assertMatches('is+', 'mississipi', 'm->iss<-issipi')
-  assertMatches('(is+)+', 'mississipi', 'm->ississ<-ipi')
-  assertMatches('/d{2}:/d{2}/s*([ap]m)', '12:50 am', '->12:50 am<-')
-  assertMatches('a*', '', '-><-')
-  assertMatches('a+', '', NO_MATCH_MESSAGE)
-  assertMatches('a*', '...aa', '-><-...aa')
-  assertMatches('a*', 'aa', '->aa<-')
-  assertMatches('a+', '...aa', '...->aa<-')
-  assertMatches('a+$', '..aa', '..->aa<-')
-  assertMatches('(x+x+)+y', 'xxxxxxxxxxy', '->xxxxxxxxxxy<-')
-  assertMatches('(x+x+)+y', 'xxxxxxxxxx', NO_MATCH_MESSAGE)
-  assertMatches('(a+)*ab', 'aaaaaaaaaaaab', '->aaaaaaaaaaaab<-')
-  assertMatches('.*.*=.*', 'x=x', '->x=x<-')
-  assertMatches(
+  assertMatches_v1('an+', 'banana', 'b->an<-ana')
+  assertMatches_v1('(an)+', 'banana', 'b->anan<-a')
+  assertMatches_v1('iss', 'mississipi', 'm->iss<-issipi')
+  assertMatches_v1('(iss)+', 'mississipi', 'm->ississ<-ipi')
+  assertMatches_v1('is+', 'mississipi', 'm->iss<-issipi')
+  assertMatches_v1('(is+)+', 'mississipi', 'm->ississ<-ipi')
+  assertMatches_v1('/d{2}:/d{2}/s*([ap]m)', '12:50 am', '->12:50 am<-')
+  assertMatches_v1('a*', '', '-><-')
+  assertMatches_v1('a+', '', NO_MATCH_MESSAGE)
+  assertMatches_v1('a*', '...aa', '-><-...aa')
+  assertMatches_v1('a*', 'aa', '->aa<-')
+  assertMatches_v1('a+', '...aa', '...->aa<-')
+  assertMatches_v1('a+$', '..aa', '..->aa<-')
+  assertMatches_v1('(x+x+)+y', 'xxxxxxxxxxy', '->xxxxxxxxxxy<-')
+  assertMatches_v1('(x+x+)+y', 'xxxxxxxxxx', NO_MATCH_MESSAGE)
+  assertMatches_v1('(a+)*ab', 'aaaaaaaaaaaab', '->aaaaaaaaaaaab<-')
+  assertMatches_v1('.*.*=.*', 'x=x', '->x=x<-')
+  assertMatches_v1(
     '.*.*=.*',
     'x=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
     '->x=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx<-'
   )
-  assertMatches('.*.*=.*', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', NO_MATCH_MESSAGE)
+  assertMatches_v1('.*.*=.*', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', NO_MATCH_MESSAGE)
 })
 
-Deno.test('Repetitions which can potentially match an empty string', () => {
+Deno.test('Repetitions which can potentially match an empty string (v1)', () => {
   debugMode = false
 
   ////////////////////////////
   // Default branching mode //
   ////////////////////////////
 
-  assertMatches('(a+)*', '', '-><-')
-  assertMatches('(a+)*', 'aaaaa', '->aaaaa<-')
-  assertMatches('(a+)*', 'baaaaa', '-><-baaaaa')
+  assertMatches_v1('(a+)*', '', '-><-')
+  assertMatches_v1('(a+)*', 'aaaaa', '->aaaaa<-')
+  assertMatches_v1('(a+)*', 'baaaaa', '-><-baaaaa')
 
-  assertMatches('(a*)*', '', '-><-')
-  assertMatches('(a*)*', 'aaaaa', '->aaaaa<-')
-  assertMatches('(a*)*', 'baaaaa', '-><-baaaaa')
+  assertMatches_v1('(a*)*', '', '-><-')
+  assertMatches_v1('(a*)*', 'aaaaa', '->aaaaa<-')
+  assertMatches_v1('(a*)*', 'baaaaa', '-><-baaaaa')
 
-  assertMatches('(a*)+', '', '-><-')
-  assertMatches('(a*)+', 'aaaaa', '->aaaaa<-')
-  assertMatches('(a*)+', 'baaaaa', '-><-baaaaa')
+  assertMatches_v1('(a*)+', '', '-><-')
+  assertMatches_v1('(a*)+', 'aaaaa', '->aaaaa<-')
+  assertMatches_v1('(a*)+', 'baaaaa', '-><-baaaaa')
 
-  assertMatches('(a?)*', '', '-><-')
-  assertMatches('(a?)*', 'aaaaa', '->aaaaa<-')
-  assertMatches('(a?)*', 'baaaaa', '-><-baaaaa')
+  assertMatches_v1('(a?)*', '', '-><-')
+  assertMatches_v1('(a?)*', 'aaaaa', '->aaaaa<-')
+  assertMatches_v1('(a?)*', 'baaaaa', '-><-baaaaa')
 
-  assertMatches('(a?)+', '', '-><-')
-  assertMatches('(a?)+', 'aaaaa', '->aaaaa<-')
-  assertMatches('(a?)+', 'baaaaa', '-><-baaaaa')
+  assertMatches_v1('(a?)+', '', '-><-')
+  assertMatches_v1('(a?)+', 'aaaaa', '->aaaaa<-')
+  assertMatches_v1('(a?)+', 'baaaaa', '-><-baaaaa')
 
-  assertMatches('(a{0,9})*', '', '-><-')
-  assertMatches('(a{0,9})*', 'aaaaa', '->aaaaa<-')
-  assertMatches('(a{0,9})*', 'baaaaa', '-><-baaaaa')
+  assertMatches_v1('(a{0,9})*', '', '-><-')
+  assertMatches_v1('(a{0,9})*', 'aaaaa', '->aaaaa<-')
+  assertMatches_v1('(a{0,9})*', 'baaaaa', '-><-baaaaa')
 
-  assertMatches('(a{0,9})+', '', '-><-')
-  assertMatches('(a{0,9})+', 'aaaaa', '->aaaaa<-')
-  assertMatches('(a{0,9})+', 'baaaaa', '-><-baaaaa')
+  assertMatches_v1('(a{0,9})+', '', '-><-')
+  assertMatches_v1('(a{0,9})+', 'aaaaa', '->aaaaa<-')
+  assertMatches_v1('(a{0,9})+', 'baaaaa', '-><-baaaaa')
 
-  assertMatches('(a*b*)*', '', '-><-')
-  assertMatches('(a*b*)*', 'aaaaabbb', '->aaaaabbb<-')
-  assertMatches('(a*b*)*', 'caaaaabbb', '-><-caaaaabbb')
+  assertMatches_v1('(a*b*)*', '', '-><-')
+  assertMatches_v1('(a*b*)*', 'aaaaabbb', '->aaaaabbb<-')
+  assertMatches_v1('(a*b*)*', 'caaaaabbb', '-><-caaaaabbb')
 
-  assertMatches('(a?b*)*', '', '-><-')
-  assertMatches('(a?b*)*', 'abbb', '->abbb<-')
-  assertMatches('(a?b*)*', 'bbb', '->bbb<-')
-  assertMatches('(a?b*)*', 'caaaaabbb', '-><-caaaaabbb')
+  assertMatches_v1('(a?b*)*', '', '-><-')
+  assertMatches_v1('(a?b*)*', 'abbb', '->abbb<-')
+  assertMatches_v1('(a?b*)*', 'bbb', '->bbb<-')
+  assertMatches_v1('(a?b*)*', 'caaaaabbb', '-><-caaaaabbb')
 
-  assertMatches('(a?b*)+', '', '-><-')
-  assertMatches('(a?b*)+', 'abbb', '->abbb<-')
-  assertMatches('(a?b*)+', 'bbb', '->bbb<-')
-  assertMatches('(a?b*)+', 'caaaaabbb', '-><-caaaaabbb')
+  assertMatches_v1('(a?b*)+', '', '-><-')
+  assertMatches_v1('(a?b*)+', 'abbb', '->abbb<-')
+  assertMatches_v1('(a?b*)+', 'bbb', '->bbb<-')
+  assertMatches_v1('(a?b*)+', 'caaaaabbb', '-><-caaaaabbb')
 
-  assertMatches('(a?b*)?', '', '-><-')
-  assertMatches('(a?b*)?', 'abbb', '->abbb<-')
-  assertMatches('(a?b*)?', 'bbb', '->bbb<-')
-  assertMatches('(a?b*)?', 'abbbabbbbbb', '->abbb<-abbbbbb')
-  assertMatches('(a?b*)?', 'caaaaabbb', '-><-caaaaabbb')
+  assertMatches_v1('(a?b*)?', '', '-><-')
+  assertMatches_v1('(a?b*)?', 'abbb', '->abbb<-')
+  assertMatches_v1('(a?b*)?', 'bbb', '->bbb<-')
+  assertMatches_v1('(a?b*)?', 'abbbabbbbbb', '->abbb<-abbbbbb')
+  assertMatches_v1('(a?b*)?', 'caaaaabbb', '-><-caaaaabbb')
 
   ///////////////
   // Lazy mode //
   ///////////////
 
-  assertMatches('(a+)*?', '', '-><-')
-  assertMatches('(a*)*?', '', '-><-')
-  assertMatches('(a*)+?', '', '-><-')
-  assertMatches('(a?)*?', '', '-><-')
-  assertMatches('(a?)+?', '', '-><-')
-  assertMatches('(a{0,9})*?', '', '-><-')
-  assertMatches('(a{0,9})+?', '', '-><-')
+  assertMatches_v1('(a+)*?', '', '-><-')
+  assertMatches_v1('(a*)*?', '', '-><-')
+  assertMatches_v1('(a*)+?', '', '-><-')
+  assertMatches_v1('(a?)*?', '', '-><-')
+  assertMatches_v1('(a?)+?', '', '-><-')
+  assertMatches_v1('(a{0,9})*?', '', '-><-')
+  assertMatches_v1('(a{0,9})+?', '', '-><-')
 
-  assertMatches('(a+?)*', '', '-><-')
-  assertMatches('(a*?)*', '', '-><-')
-  assertMatches('(a*?)+', '', '-><-')
-  assertMatches('(a??)*', '', '-><-')
-  assertMatches('(a??)+', '', '-><-')
-  assertMatches('(a{0,9}?)*', '', '-><-')
-  assertMatches('(a{0,9}?)+', '', '-><-')
+  assertMatches_v1('(a+?)*', '', '-><-')
+  assertMatches_v1('(a*?)*', '', '-><-')
+  assertMatches_v1('(a*?)+', '', '-><-')
+  assertMatches_v1('(a??)*', '', '-><-')
+  assertMatches_v1('(a??)+', '', '-><-')
+  assertMatches_v1('(a{0,9}?)*', '', '-><-')
+  assertMatches_v1('(a{0,9}?)+', '', '-><-')
 
-  assertMatches('(a+?)*?', '', '-><-')
-  assertMatches('(a*?)*?', '', '-><-')
-  assertMatches('(a*?)+?', '', '-><-')
-  assertMatches('(a??)*?', '', '-><-')
-  assertMatches('(a??)+?', '', '-><-')
-  assertMatches('(a{0,9}?)*?', '', '-><-')
-  assertMatches('(a{0,9}?)+?', '', '-><-')
+  assertMatches_v1('(a+?)*?', '', '-><-')
+  assertMatches_v1('(a*?)*?', '', '-><-')
+  assertMatches_v1('(a*?)+?', '', '-><-')
+  assertMatches_v1('(a??)*?', '', '-><-')
+  assertMatches_v1('(a??)+?', '', '-><-')
+  assertMatches_v1('(a{0,9}?)*?', '', '-><-')
+  assertMatches_v1('(a{0,9}?)+?', '', '-><-')
 
   /////////////////////
   // Possessive mode //
   /////////////////////
 
-  assertMatches('(a+)*+', '', '-><-')
-  assertMatches('(a*)*+', '', '-><-')
-  assertMatches('(a*)++', '', '-><-')
-  assertMatches('(a?)*+', '', '-><-')
-  assertMatches('(a?)++', '', '-><-')
-  assertMatches('(a{0,9})*+', '', '-><-')
-  assertMatches('(a{0,9})++', '', '-><-')
+  assertMatches_v1('(a+)*+', '', '-><-')
+  assertMatches_v1('(a*)*+', '', '-><-')
+  assertMatches_v1('(a*)++', '', '-><-')
+  assertMatches_v1('(a?)*+', '', '-><-')
+  assertMatches_v1('(a?)++', '', '-><-')
+  assertMatches_v1('(a{0,9})*+', '', '-><-')
+  assertMatches_v1('(a{0,9})++', '', '-><-')
 
-  assertMatches('(a++)*', '', '-><-')
-  assertMatches('(a*+)*', '', '-><-')
-  assertMatches('(a*+)+', '', '-><-')
-  assertMatches('(a?+)*', '', '-><-')
-  assertMatches('(a?+)+', '', '-><-')
-  assertMatches('(a{0,9}+)*', '', '-><-')
-  assertMatches('(a{0,9}+)+', '', '-><-')
+  assertMatches_v1('(a++)*', '', '-><-')
+  assertMatches_v1('(a*+)*', '', '-><-')
+  assertMatches_v1('(a*+)+', '', '-><-')
+  assertMatches_v1('(a?+)*', '', '-><-')
+  assertMatches_v1('(a?+)+', '', '-><-')
+  assertMatches_v1('(a{0,9}+)*', '', '-><-')
+  assertMatches_v1('(a{0,9}+)+', '', '-><-')
 
-  assertMatches('(a++)*+', '', '-><-')
-  assertMatches('(a*+)*+', '', '-><-')
-  assertMatches('(a*+)++', '', '-><-')
-  assertMatches('(a?+)*+', '', '-><-')
-  assertMatches('(a?+)++', '', '-><-')
-  assertMatches('(a{0,9}+)*+', '', '-><-')
-  assertMatches('(a{0,9}+)++', '', '-><-')
+  assertMatches_v1('(a++)*+', '', '-><-')
+  assertMatches_v1('(a*+)*+', '', '-><-')
+  assertMatches_v1('(a*+)++', '', '-><-')
+  assertMatches_v1('(a?+)*+', '', '-><-')
+  assertMatches_v1('(a?+)++', '', '-><-')
+  assertMatches_v1('(a{0,9}+)*+', '', '-><-')
+  assertMatches_v1('(a{0,9}+)++', '', '-><-')
 
-  assertMatches('(((a*)+)+)+', '', '-><-')
-  assertMatches('(((a*)+)+)+', 'a', '->a<-')
-  assertMatches('(((a*)+)+)+', 'ba', '-><-ba')
-  assertMatches('(((a*)+)+)+', 'aaaaaaaaaaaaaaaaa', '->aaaaaaaaaaaaaaaaa<-')
+  assertMatches_v1('(((a*)+)+)+', '', '-><-')
+  assertMatches_v1('(((a*)+)+)+', 'a', '->a<-')
+  assertMatches_v1('(((a*)+)+)+', 'ba', '-><-ba')
+  assertMatches_v1('(((a*)+)+)+', 'aaaaaaaaaaaaaaaaa', '->aaaaaaaaaaaaaaaaa<-')
 })
 
-Deno.test('Complex repetitions', () => {
+Deno.test('Complex repetitions (v1)', () => {
   debugMode = false
 
   // Produces complex, multi-level repetitions, such as: "(a+)", "((a+)+)", "(((a+)+)+)" etc.
@@ -1222,29 +1211,334 @@ Deno.test('Complex repetitions', () => {
   }
 
   const m = 10
-  const o = 100
-  assertMatches(repeatedAs(m), 'a'.repeat(o), '->' + 'a'.repeat(o) + '<-')
+  const o = 1000
+  assertMatches_v1(repeatedAs(m), 'a'.repeat(o), '->' + 'a'.repeat(o) + '<-')
 
-  const n = 100
-  assertMatches('a*'.repeat(n), 'a'.repeat(n), '->' + 'a'.repeat(n) + '<-')
-  assertMatches('a*'.repeat(n) + 'a'.repeat(n), 'a'.repeat(n), '->' + 'a'.repeat(n) + '<-')
-  assertMatches('a?'.repeat(n) + 'a'.repeat(n), 'a'.repeat(n), '->' + 'a'.repeat(n) + '<-')
+  const n = 10
+  assertMatches_v1('a*'.repeat(n), 'a'.repeat(n), '->' + 'a'.repeat(n) + '<-')
+  assertMatches_v1('a*'.repeat(n) + 'a'.repeat(n), 'a'.repeat(n), '->' + 'a'.repeat(n) + '<-')
+  assertMatches_v1('a?'.repeat(n) + 'a'.repeat(n), 'a'.repeat(n), '->' + 'a'.repeat(n) + '<-')
 
-  assertMatches(
+  assertMatches_v1(
     '(((a*b)+c)?d,){2,3}',
     'd,bcd,aaabababaaabbbbbbcd,d',
     '->d,bcd,aaabababaaabbbbbbcd,<-d'
   )
-  assertMatches('(((a*b)+c)?d,){2,3}', 'd', NO_MATCH_MESSAGE)
+  assertMatches_v1('(((a*b)+c)?d,){2,3}', 'd', NO_MATCH_MESSAGE)
 })
 
-Deno.test('Anchors', () => {
+Deno.test('Anchors (v1)', () => {
   debugMode = false
 
-  assertMatches('^a+', '...aa', NO_MATCH_MESSAGE)
-  assertMatches('^a+', 'aa', '->aa<-')
-  assertMatches('^a+$', 'aa...', NO_MATCH_MESSAGE)
-  assertMatches('^a+$', 'aa', '->aa<-')
+  assertMatches_v1('^a+', '...aa', NO_MATCH_MESSAGE)
+  assertMatches_v1('^a+', 'aa', '->aa<-')
+  assertMatches_v1('^a+$', 'aa...', NO_MATCH_MESSAGE)
+  assertMatches_v1('^a+$', 'aa', '->aa<-')
+  assertMatches_v1('^', '', '-><-')
+  assertMatches_v1('$', '', '-><-')
+  assertMatches_v1('^a*', '', '-><-')
+  assertMatches_v1('a*$', '', '-><-')
+  assertMatches_v1('\\b', 'some_word', '-><-some_word')
+  assertMatches_v1('\\b/w{4}', '           some_word   ', '           ->some<-_word   ')
+  assertMatches_v1('/w{4}\\b', '           some_word   ', '           some_->word<-   ')
+  assertMatches_v1('\\b/w{4}', 'some_word   ', '->some<-_word   ')
+  assertMatches_v1('/w{4}\\b', '           some_word', '           some_->word<-')
+  assertMatches_v1(
+    '\\b/w\\b',
+    '               x              ',
+    '               ->x<-              '
+  )
+  assertMatches_v1('\\b/w\\b', '               xx              ', NO_MATCH_MESSAGE)
+})
+
+Deno.test('scan() (v1)', () => {
+  debugMode = false
+
+  assertEquals(
+    scan_v1(
+      '/w+([.]/w+)*@/w+([.]/w+)+',
+      '| john.doe@gmail.com | john@gmail.com.us | john.doe@ | @gmail.com | john@gmail | jo.hn.do.e@g.mail.co.m |'
+    ),
+    ['john.doe@gmail.com', 'john@gmail.com.us', 'jo.hn.do.e@g.mail.co.m']
+  )
+  assertEquals(scan_v1('/d{2}', '01234567'), ['01', '23', '45', '67'])
+  assertEquals(scan_v1('/d', '01234567'), ['0', '1', '2', '3', '4', '5', '6', '7'])
+  assertEquals(scan_v1('.', '01234567'), ['0', '1', '2', '3', '4', '5', '6', '7'])
+  // assertEquals(scan_v1('\\b/w', 'regexps are really cool'), ['r', 'a', 'r', 'c'])
+  // assertEquals(scan2('/w\\b', 'regexps are really cool'), ['s', 'e', 'y', 'l'])
+  assertEquals(scan_v1('/w', 'ab+cd-efg*hijk/lmn'), [
+    'a',
+    'b',
+    'c',
+    'd',
+    'e',
+    'f',
+    'g',
+    'h',
+    'i',
+    'j',
+    'k',
+    'l',
+    'm',
+    'n',
+  ])
+  assertEquals(scan_v1('/W', 'ab+cd-efg*hijk/lmn'), ['+', '-', '*', '/'])
+  // assertEquals(scan_v1('\\b\\w*\\b', '   aaa    bbb    ccc    '), ['aaa', 'bbb', 'ccc'])
+})
+
+Deno.test('jsMultiline on x off behavior (v1)', () => {
+  debugMode = false
+
+  assertEquals(scan_v1('^.', 'regexps\nare\nreally\ncool', { jsMultiline: true }), [
+    'r',
+    'a',
+    'r',
+    'c',
+  ])
+  assertEquals(scan_v1('^.', 'regexps\nare\nreally\ncool', { jsMultiline: false }), ['r'])
+  assertEquals(scan_v1('.$', 'regexps\nare\nreally\ncool', { jsMultiline: true }), [
+    's',
+    'e',
+    'y',
+    'l',
+  ])
+  assertEquals(scan_v1('.$', 'regexps\nare\nreally\ncool', { jsMultiline: false }), ['l'])
+})
+
+Deno.test('Greedy (default) x lazy behavior (v1)', () => {
+  debugMode = false
+
+  assertMatches_v1('(iss)+', 'mississipi', 'm->ississ<-ipi')
+  assertMatches_v1('(iss)+?', 'mississipi', 'm->iss<-issipi')
+
+  assertMatches_v1('a*', 'aaaaa', '->aaaaa<-')
+  assertMatches_v1('a*?', 'aaaaa', '-><-aaaaa')
+
+  assertMatches_v1('a+', 'aaaaa', '->aaaaa<-')
+  assertMatches_v1('a+?', 'aaaaa', '->a<-aaaa')
+})
+
+Deno.test('Backtrackable (default) x possessive behavior (v1)', () => {
+  debugMode = false
+
+  assertMatches_v1('a*a', 'aaaa', '->aaaa<-')
+  assertMatches_v1('a*+a', 'aaaa', NO_MATCH_MESSAGE)
+
+  assertMatches_v1('a+a', 'aaaa', '->aaaa<-')
+  assertMatches_v1('a++a', 'aaaa', NO_MATCH_MESSAGE)
+
+  assertMatches_v1('a+b', 'aaaab', '->aaaab<-')
+  assertMatches_v1('a++b', 'aaaab', '->aaaab<-')
+
+  assertMatches_v1('a+ab', 'aaaab', '->aaaab<-')
+  assertMatches_v1('a++ab', 'aaaab', NO_MATCH_MESSAGE)
+
+  assertEquals(scan_v1('/d++', '1234567890'), ['1234567890'])
+  assertEquals(scan_v1('/d*+', '1234567890'), ['1234567890'])
+})
+
+const assertMatches_v2 = (
+  regExpAsString: string,
+  input: string,
+  matchedResult: string,
+  options: BuildNfaFromRegExpAndMatchOptionsType = {}
+) => {
+  const nfa = buildNfaFromRegExp(regExpAsString, {
+    printNodes: options.printNodes,
+  })
+
+  const matchData = match_v2(nfa, input, { ...options, arrows: true })
+
+  assertEquals(typeof matchData === 'string' ? matchData : matchData?.match, matchedResult)
+}
+
+Deno.test('Repetitions (v2)', () => {
+  debugMode = false
+
+  assertMatches_v2('an+', 'banana', 'b->an<-ana')
+  assertMatches_v2('(an)+', 'banana', 'b->anan<-a')
+  assertMatches_v2('iss', 'mississipi', 'm->iss<-issipi')
+  assertMatches_v2('(iss)+', 'mississipi', 'm->ississ<-ipi')
+  assertMatches_v2('is+', 'mississipi', 'm->iss<-issipi')
+  assertMatches_v2('(is+)+', 'mississipi', 'm->ississ<-ipi')
+  assertMatches_v2('/d{2}:/d{2}/s*([ap]m)', '12:50 am', '->12:50 am<-')
+  assertMatches_v2('a*', '', '-><-')
+  assertMatches_v2('a+', '', NO_MATCH_MESSAGE)
+  assertMatches_v2('a*', '...aa', '-><-...aa')
+  assertMatches_v2('a*', 'aa', '->aa<-')
+  assertMatches_v2('a+', '...aa', '...->aa<-')
+  assertMatches_v2('a+$', '..aa', '..->aa<-')
+  assertMatches_v2('(x+x+)+y', 'xxxxxxxxxxy', '->xxxxxxxxxxy<-')
+  assertMatches_v2('(x+x+)+y', 'xxxxxxxxxx', NO_MATCH_MESSAGE)
+  assertMatches_v2('(a+)*ab', 'aaaaaaaaaaaab', '->aaaaaaaaaaaab<-')
+  assertMatches_v2('.*.*=.*', 'x=x', '->x=x<-')
+  assertMatches_v2(
+    '.*.*=.*',
+    'x=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+    '->x=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx<-'
+  )
+  assertMatches_v2('.*.*=.*', 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', NO_MATCH_MESSAGE)
+})
+
+Deno.test('Repetitions which can potentially match an empty string (v2)', () => {
+  debugMode = false
+
+  ////////////////////////////
+  // Default branching mode //
+  ////////////////////////////
+
+  assertMatches_v2('(a+)*', '', '-><-')
+  assertMatches_v2('(a+)*', 'aaaaa', '->aaaaa<-')
+  assertMatches_v2('(a+)*', 'baaaaa', '-><-baaaaa')
+
+  assertMatches_v2('(a*)*', '', '-><-')
+  assertMatches_v2('(a*)*', 'aaaaa', '->aaaaa<-')
+  assertMatches_v2('(a*)*', 'baaaaa', '-><-baaaaa')
+
+  assertMatches_v2('(a*)+', '', '-><-')
+  assertMatches_v2('(a*)+', 'aaaaa', '->aaaaa<-')
+  assertMatches_v2('(a*)+', 'baaaaa', '-><-baaaaa')
+
+  assertMatches_v2('(a?)*', '', '-><-')
+  assertMatches_v2('(a?)*', 'aaaaa', '->aaaaa<-')
+  assertMatches_v2('(a?)*', 'baaaaa', '-><-baaaaa')
+
+  assertMatches_v2('(a?)+', '', '-><-')
+  assertMatches_v2('(a?)+', 'aaaaa', '->aaaaa<-')
+  assertMatches_v2('(a?)+', 'baaaaa', '-><-baaaaa')
+
+  assertMatches_v2('(a{0,9})*', '', '-><-')
+  assertMatches_v2('(a{0,9})*', 'aaaaa', '->aaaaa<-')
+  assertMatches_v2('(a{0,9})*', 'baaaaa', '-><-baaaaa')
+
+  assertMatches_v2('(a{0,9})+', '', '-><-')
+  assertMatches_v2('(a{0,9})+', 'aaaaa', '->aaaaa<-')
+  assertMatches_v2('(a{0,9})+', 'baaaaa', '-><-baaaaa')
+
+  assertMatches_v2('(a*b*)*', '', '-><-')
+  assertMatches_v2('(a*b*)*', 'aaaaabbb', '->aaaaabbb<-')
+  assertMatches_v2('(a*b*)*', 'caaaaabbb', '-><-caaaaabbb')
+
+  assertMatches_v2('(a?b*)*', '', '-><-')
+  assertMatches_v2('(a?b*)*', 'abbb', '->abbb<-')
+  assertMatches_v2('(a?b*)*', 'bbb', '->bbb<-')
+  assertMatches_v2('(a?b*)*', 'caaaaabbb', '-><-caaaaabbb')
+
+  assertMatches_v2('(a?b*)+', '', '-><-')
+  assertMatches_v2('(a?b*)+', 'abbb', '->abbb<-')
+  assertMatches_v2('(a?b*)+', 'bbb', '->bbb<-')
+  assertMatches_v2('(a?b*)+', 'caaaaabbb', '-><-caaaaabbb')
+
+  assertMatches_v2('(a?b*)?', '', '-><-')
+  assertMatches_v2('(a?b*)?', 'abbb', '->abbb<-')
+  assertMatches_v2('(a?b*)?', 'bbb', '->bbb<-')
+  assertMatches_v2('(a?b*)?', 'abbbabbbbbb', '->abbb<-abbbbbb')
+  assertMatches_v2('(a?b*)?', 'caaaaabbb', '-><-caaaaabbb')
+
+  ///////////////
+  // Lazy mode //
+  ///////////////
+
+  assertMatches_v2('(a+)*?', '', '-><-')
+  assertMatches_v2('(a*)*?', '', '-><-')
+  assertMatches_v2('(a*)+?', '', '-><-')
+  assertMatches_v2('(a?)*?', '', '-><-')
+  assertMatches_v2('(a?)+?', '', '-><-')
+  assertMatches_v2('(a{0,9})*?', '', '-><-')
+  assertMatches_v2('(a{0,9})+?', '', '-><-')
+
+  assertMatches_v2('(a+?)*', '', '-><-')
+  assertMatches_v2('(a*?)*', '', '-><-')
+  assertMatches_v2('(a*?)+', '', '-><-')
+  assertMatches_v2('(a??)*', '', '-><-')
+  assertMatches_v2('(a??)+', '', '-><-')
+  assertMatches_v2('(a{0,9}?)*', '', '-><-')
+  assertMatches_v2('(a{0,9}?)+', '', '-><-')
+
+  assertMatches_v2('(a+?)*?', '', '-><-')
+  assertMatches_v2('(a*?)*?', '', '-><-')
+  assertMatches_v2('(a*?)+?', '', '-><-')
+  assertMatches_v2('(a??)*?', '', '-><-')
+  assertMatches_v2('(a??)+?', '', '-><-')
+  assertMatches_v2('(a{0,9}?)*?', '', '-><-')
+  assertMatches_v2('(a{0,9}?)+?', '', '-><-')
+
+  /////////////////////
+  // Possessive mode //
+  /////////////////////
+
+  assertMatches_v2('(a+)*+', '', '-><-')
+  assertMatches_v2('(a*)*+', '', '-><-')
+  assertMatches_v2('(a*)++', '', '-><-')
+  assertMatches_v2('(a?)*+', '', '-><-')
+  assertMatches_v2('(a?)++', '', '-><-')
+  assertMatches_v2('(a{0,9})*+', '', '-><-')
+  assertMatches_v2('(a{0,9})++', '', '-><-')
+
+  assertMatches_v2('(a++)*', '', '-><-')
+  assertMatches_v2('(a*+)*', '', '-><-')
+  assertMatches_v2('(a*+)+', '', '-><-')
+  assertMatches_v2('(a?+)*', '', '-><-')
+  assertMatches_v2('(a?+)+', '', '-><-')
+  assertMatches_v2('(a{0,9}+)*', '', '-><-')
+  assertMatches_v2('(a{0,9}+)+', '', '-><-')
+
+  assertMatches_v2('(a++)*+', '', '-><-')
+  assertMatches_v2('(a*+)*+', '', '-><-')
+  assertMatches_v2('(a*+)++', '', '-><-')
+  assertMatches_v2('(a?+)*+', '', '-><-')
+  assertMatches_v2('(a?+)++', '', '-><-')
+  assertMatches_v2('(a{0,9}+)*+', '', '-><-')
+  assertMatches_v2('(a{0,9}+)++', '', '-><-')
+
+  assertMatches_v2('(((a*)+)+)+', '', '-><-')
+  assertMatches_v2('(((a*)+)+)+', 'a', '->a<-')
+  assertMatches_v2('(((a*)+)+)+', 'ba', '-><-ba')
+  assertMatches_v2('(((a*)+)+)+', 'aaaaaaaaaaaaaaaaa', '->aaaaaaaaaaaaaaaaa<-')
+})
+
+Deno.test('Complex repetitions (v2)', () => {
+  debugMode = false
+
+  // Produces complex, multi-level repetitions, such as: "(a+)", "((a+)+)", "(((a+)+)+)" etc.
+  const repeatedAs = (n: number) => {
+    let regexp = 'a'
+
+    times(n, () => {
+      regexp = `(${regexp}+)`
+    })
+
+    return regexp
+  }
+
+  const m = 10
+  const o = 1000
+  assertMatches_v2(repeatedAs(m), 'a'.repeat(o), '->' + 'a'.repeat(o) + '<-')
+
+  const n = 100
+  assertMatches_v2('a*'.repeat(n), 'a'.repeat(n), '->' + 'a'.repeat(n) + '<-')
+  assertMatches_v2('a*'.repeat(n) + 'a'.repeat(n), 'a'.repeat(n), '->' + 'a'.repeat(n) + '<-')
+  assertMatches_v2('a?'.repeat(n) + 'a'.repeat(n), 'a'.repeat(n), '->' + 'a'.repeat(n) + '<-')
+
+  assertMatches_v2(
+    '(((a*b)+c)?d,){2,3}',
+    'd,bcd,aaabababaaabbbbbbcd,d',
+    '->d,bcd,aaabababaaabbbbbbcd,<-d'
+  )
+  assertMatches_v2('(((a*b)+c)?d,){2,3}', 'd', NO_MATCH_MESSAGE)
+})
+
+Deno.test('Anchors (v2)', () => {
+  debugMode = false
+
+  assertMatches_v2('^a+', '...aa', NO_MATCH_MESSAGE)
+  assertMatches_v2('^a+', 'aa', '->aa<-')
+  assertMatches_v2('^a+$', 'aa...', NO_MATCH_MESSAGE)
+  assertMatches_v2('^a+$', 'aa', '->aa<-')
+  assertMatches_v2('^', '', '-><-')
+  assertMatches_v2('$', '', '-><-')
+  assertMatches_v2('^a*', '', '-><-')
+  assertMatches_v2('a*$', '', '-><-')
   // assertMatches('\\b', 'some_word', '-><-some_word')
   // assertMatches('\\b/w{4}', '           some_word   ', '           ->some<-_word   ')
   // assertMatches('/w{4}\\b', '           some_word   ', '           some_->word<-   ')
@@ -1254,7 +1548,7 @@ Deno.test('Anchors', () => {
   // assertMatches('\\b/w\\b', '               xx              ', NO_MATCH_MESSAGE)
 })
 
-Deno.test('scan()', () => {
+Deno.test('scan() (v2)', () => {
   debugMode = false
 
   assertEquals(
@@ -1286,9 +1580,10 @@ Deno.test('scan()', () => {
     'n',
   ])
   assertEquals(scan_v2('/W', 'ab+cd-efg*hijk/lmn'), ['+', '-', '*', '/'])
+  // assertEquals(scan_v2('\\b\\w*\\b', '   aaa    bbb    ccc    '), ['aaa', 'bbb', 'ccc'])
 })
 
-Deno.test('jsMultiline on x off behavior', () => {
+Deno.test('jsMultiline on x off behavior (v2)', () => {
   debugMode = false
 
   assertEquals(scan_v2('^.', 'regexps\nare\nreally\ncool', { jsMultiline: true }), [
@@ -1307,7 +1602,7 @@ Deno.test('jsMultiline on x off behavior', () => {
   assertEquals(scan_v2('.$', 'regexps\nare\nreally\ncool', { jsMultiline: false }), ['l'])
 })
 
-// Deno.test('Greedy (default) x lazy behavior', () => {
+// Deno.test('Greedy (default) x lazy behavior (v2)', () => {
 //   debugMode = false
 
 //   assertMatches('(iss)+', 'mississipi', 'm->ississ<-ipi')
@@ -1320,7 +1615,7 @@ Deno.test('jsMultiline on x off behavior', () => {
 //   assertMatches('a+?', 'aaaaa', '->a<-aaaa')
 // })
 
-// Deno.test('Backtrackable (default) x possessive behavior', () => {
+// Deno.test('Backtrackable (default) x possessive behavior (v2)', () => {
 //   debugMode = false
 
 //   assertMatches('a*a', 'aaaa', '->aaaa<-')
@@ -1352,7 +1647,6 @@ export const log = console.log
 // deno-lint-ignore no-explicit-any
 export const inspect = (value: any) =>
   Deno.inspect(value, { depth: 999, colors: true }) as unknown as string
-// deno-lint-ignore ban-types
 export const print = (value: object) => log(inspect(value))
 
 export const showRegExp = (regExpAsString: string) => print(buildRegExpAst(regExpAsString))
@@ -1394,11 +1688,13 @@ export const asGraphviz = async (
   const fNodeIsPresent = nodes.some(node => node.type === 'FNode')
 
   const label = (node: NodeType, showIds = false) => {
-    const optionalNodeId = showIds ? ` (${node.id})` : ''
+    const optionalNodeId = showIds ? ` [${node.id}]` : ''
 
     switch (node.type) {
       case 'CNode':
-        return `"†${optionalNodeId}"`
+        return `"†${optionalNodeId}${
+          node.branchingMode !== 'default' ? `\n(${node.branchingMode})` : ''
+        }"`
       case 'NNode':
         return `"'${node.character
           .replaceAll('\n', '\\n')
@@ -1519,11 +1815,15 @@ const successorTerminalNodes = (
 
   breadcrumbs.push(node)
 
+  const nextSuccessors = <T extends { next: NodeType }>(someNode: T) =>
+    successorTerminalNodes(someNode.next, skipCaretAndDollarAnchorNodes, breadcrumbs)
+
+  const nextAltSuccessors = <T extends { nextAlt: NodeType }>(someNode: T) =>
+    successorTerminalNodes(someNode.nextAlt, skipCaretAndDollarAnchorNodes, breadcrumbs)
+
   switch (node.type) {
     case 'CNode':
-      return successorTerminalNodes(node.next, skipCaretAndDollarAnchorNodes, breadcrumbs).concat(
-        successorTerminalNodes(node.nextAlt, skipCaretAndDollarAnchorNodes, breadcrumbs)
-      )
+      return nextSuccessors(node).concat(nextAltSuccessors(node))
 
     case 'FNode':
       throw new FailedNodeReached()
@@ -1532,7 +1832,7 @@ const successorTerminalNodes = (
       return skipCaretAndDollarAnchorNodes &&
         !node.isLiteral &&
         [CARET, DOLLAR_SIGN].includes(node.character)
-        ? successorTerminalNodes(node.next, skipCaretAndDollarAnchorNodes, breadcrumbs)
+        ? nextSuccessors(node)
         : [node]
 
     default:
@@ -1542,7 +1842,7 @@ const successorTerminalNodes = (
 
 const removeDuplicates = <T>(collection: T[]): T[] => [...new Set(collection)]
 
-const findSuccessorNodesTreatingLiteralDollarAnchorNode = (
+const findSuccessorTerminalNodesTreatingNonLiteralDollarAnchorNode = (
   currentNode: NNodeType,
   nextChar: SingleChar,
   options: RegExpOptionsType
@@ -1598,7 +1898,11 @@ export const findMatches = (
             return currentNode.character === currentChar
               ? (debug(() => 'Matched'),
                 newNodeList.concat(
-                  findSuccessorNodesTreatingLiteralDollarAnchorNode(currentNode, nextChar, options)
+                  findSuccessorTerminalNodesTreatingNonLiteralDollarAnchorNode(
+                    currentNode,
+                    nextChar,
+                    options
+                  )
                 ))
               : (debug(() => 'Not matched'), newNodeList)
           } else {
@@ -1607,7 +1911,7 @@ export const findMatches = (
                 return currentChar !== NEW_LINE
                   ? (debug(() => 'Matched'),
                     newNodeList.concat(
-                      findSuccessorNodesTreatingLiteralDollarAnchorNode(
+                      findSuccessorTerminalNodesTreatingNonLiteralDollarAnchorNode(
                         currentNode,
                         nextChar,
                         options
@@ -1627,7 +1931,7 @@ export const findMatches = (
                         previousChar,
                         currentChar,
                         nextChar,
-                        findSuccessorNodesTreatingLiteralDollarAnchorNode(
+                        findSuccessorTerminalNodesTreatingNonLiteralDollarAnchorNode(
                           currentNode,
                           nextChar,
                           options
@@ -1688,8 +1992,12 @@ export const matchFromIndex = (
 ): MatchFromNfaReturnType => {
   let endIndex: number | undefined = undefined
 
+  const initialNodeList = successorTerminalNodes(nfa, true)
+
+  debug(() => 'initial list: ' + inspect(initialNodeList.map(nodeAsString)))
+
   // The initial list having the end node means that the regexp matches an empty string ('').
-  if (successorTerminalNodes(nfa, true).indexOf(endNode) >= 0) endIndex = startIndex - 1 // endIndex < startIndex = empty string.
+  if (initialNodeList.indexOf(endNode) >= 0) endIndex = startIndex - 1 // endIndex < startIndex = empty string.
 
   debug(() => inspect({ startIndex, endIndex }))
 
@@ -1718,11 +2026,8 @@ export const matchFromIndex = (
 
     if (nodeList.length === 0) break // No further matches.
 
-    // Match found?
-    if (nodeList.indexOf(endNode) >= 0) {
-      // Increment the end index in order to include the current character.
-      endIndex = index
-    }
+    // If match found, update the end index in order to include all characters up to (and including) the current character.
+    if (nodeList.indexOf(endNode) >= 0) endIndex = index
 
     debug(() => inspect({ index, startIndex, endIndex }))
   }
@@ -1781,7 +2086,7 @@ export const scan_v2 = (
 
     matches.push(match.match)
 
-    startIndex = match.end + 1
+    startIndex = match.end >= match.start ? match.end + 1 : startIndex + 1
   }
 
   return matches.flat()

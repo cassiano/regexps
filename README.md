@@ -1,6 +1,6 @@
 # Regular Expression Engine
 
-## This personal project uses Parser Combinators and an NFA (Non-deterministic Finite Automatum) to parse and evaluate regular expressions against a given string. The NFA implementation is based on this article by Ken Thompson: https://dl.acm.org/doi/epdf/10.1145/363347.363387
+## This personal project uses Parser Combinators and an NFA (Non-deterministic Finite Automaton) to parse and evaluate regular expressions against a given string. The NFA implementation is based on this article by Ken Thompson: https://dl.acm.org/doi/epdf/10.1145/363347.363387
 
 ## Pre-requisites:
 
@@ -76,20 +76,20 @@ deno
 "(sorry, no match)"
 
 
-// Scanning a string against a regexp and collect all results.
-> re.scan('\\d{2}', '1234567890')
+// Scanning a string against a regexp.
+> re.scan_v1('\\d{2}', '1234567890')
 [ "12", "34", "56", "78", "90" ]
 
 
 // Scanning a string using the default multiline behavior, similar to how it works by default
 // in Ruby.
-> re.scan('^.', 'regexps\nare\nreally\ncool', { jsMultiline: true })
+> re.scan_v1('^.', 'regexps\nare\nreally\ncool', { jsMultiline: true })
 [ "r", "a", "r", "c" ]
 
 
 // Scanning a string using the alternative singleline behavior, similar to how it works by
 // default in JavaScript.
-> re.scan('^.', 'regexps\nare\nreally\ncool', { jsMultiline: false })
+> re.scan_v1('^.', 'regexps\nare\nreally\ncool', { jsMultiline: false })
 [ "r" ]
 
 

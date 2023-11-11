@@ -180,7 +180,6 @@ export const all =
     if (parsers.length === 0) return [error('(all) no parsers specified'), input]
 
     for (const parser of parsers) {
-      // deno-lint-ignore no-extra-semi
       ;[result, rest] = parser(input)
 
       if (isError(result)) return [result, input]
