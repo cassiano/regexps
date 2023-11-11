@@ -23,20 +23,26 @@ Please install Deno (https://docs.deno.com/runtime/manual/getting_started/instal
 ## To run tests:
 
 ```
-deno test regexp_nfa.ts
+✗ deno test regexp_nfa.ts
 
-running 9 tests from ./regexp_nfa.ts
-Repetitions ... ok (37ms)
-AST nodes of problematic repetitions ... ok (21ms)
-Problematic repetitions ... ok (9ms)
-Complex repetitions ... ok (56ms)
-Anchors ... ok (20ms)
-scan() ... ok (16ms)
-jsMultiline on x off behavior ... ok (10ms)
-Greedy (default) x lazy behavior ... ok (12ms)
-Backtrackable (default) x possessive behavior ... ok (10ms)
+Check file:///.../regexp_nfa.ts
+running 14 tests from ./regexp_nfa.ts
+Repetitions (v1) ... ok (35ms)
+Repetitions which can potentially match an empty string (v1) ... ok (27ms)
+Complex repetitions (v1) ... ok (334ms)
+Anchors (v1) ... ok (27ms)
+scan() (v1) ... ok (187ms)
+jsMultiline on x off behavior (v1) ... ok (0ms)
+Greedy (default) x lazy behavior (v1) ... ok (1ms)
+Backtrackable (default) x possessive behavior (v1) ... ok (5ms)
+Repetitions (v2) ... ok (9ms)
+Repetitions which can potentially match an empty string (v2) ... ok (6ms)
+Complex repetitions (v2) ... ok (8s)
+Anchors (v2) ... ok (0ms)
+scan() (v2) ... ok (38ms)
+jsMultiline on x off behavior (v2) ... ok (0ms)
 
-ok | 9 passed | 0 failed (284ms)
+ok | 14 passed | 0 failed (9s)
 ```
 
 ### To use it in the REPL:
