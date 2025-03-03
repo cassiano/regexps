@@ -1,49 +1,5 @@
 type RefType = string
 
-// deno-lint-ignore no-explicit-any
-type MemoizableFnType<T> = (...args: any[]) => T
-
-export const memoize = <T>(fn: MemoizableFnType<T>): MemoizableFnType<T> => {
-  const cache: { key: unknown[]; value: T }[] = []
-
-  const memoizedFn: MemoizableFnType<T> = (...args) => {
-    let value: T
-
-    const entry = cache.find(({ key }) => key.every((param, i) => param === args[i]))
-
-    if (entry !== undefined) {
-      value = entry.value
-    } else {
-      value = fn(...args)
-
-      cache.unshift({ key: args, value })
-    }
-
-    return value
-  }
-
-  return memoizedFn
-}
-
-// const memoize = <T>(fn: MemoizableFnType<T>): MemoizableFnType<T> => {
-//   const cache: { [key: string]: T } = {}
-//
-//   const memoizedFn: MemoizableFnType<T> = (...args) => {
-//     if (args.some(arg => typeof arg === 'function'))
-//       throw new Error(
-//         'Sorry, this function has at least 1 function argument and cannot be memoized!'
-//       )
-//
-//     const key = JSON.stringify(args)
-//
-//     if (!(key in cache)) cache[key] = fn(...args)
-//
-//     return cache[key]
-//   }
-//
-//   return memoizedFn
-// }
-
 export const error = (msg: string) => new Error(msg)
 
 export const EMPTY_STRING = ''
@@ -85,11 +41,8 @@ export const or =
   }
 export const or2 = or
 
-export const or3 = <A, B, C>(
-  parserA: Parser<A>,
-  parserB: Parser<B>,
-  parserC: Parser<C>
-): Parser<A | B | C> => or(parserA, or2(parserB, parserC))
+export const or3 = <A, B, C>(parserA: Parser<A>, parserB: Parser<B>, parserC: Parser<C>): Parser<A | B | C> =>
+  or(parserA, or2(parserB, parserC))
 
 export const or4 = <A, B, C, D>(
   parserA: Parser<A>,
@@ -135,10 +88,7 @@ export const and4 = <A, B, C, D>(
   parserC: Parser<C>,
   parserD: Parser<D>
 ): Parser<[A, B, C, D]> =>
-  map(and(parserA, and3(parserB, parserC, parserD)), ([resultA, otherResults]) => [
-    resultA,
-    ...otherResults,
-  ])
+  map(and(parserA, and3(parserB, parserC, parserD)), ([resultA, otherResults]) => [resultA, ...otherResults])
 
 export const and5 = <A, B, C, D, E>(
   parserA: Parser<A>,
@@ -213,8 +163,7 @@ export const none =
     for (const parser of parsers) {
       const [result, _] = parser(input)
 
-      if (!isError(result))
-        return [error(`(none) One of the ${parsers.length} parsers satisfied`), input]
+      if (!isError(result)) return [error(`(none) One of the ${parsers.length} parsers satisfied`), input]
     }
 
     return [input.slice(0, charsToConsume), input.slice(charsToConsume)]
@@ -240,24 +189,17 @@ export const manyN =
       return [[], input]
     }
 
-    return map(manyN(parser, { min: min - 1, max: max - 1 }), otherResults => [
-      result,
-      ...otherResults,
-    ])(rest)
+    return map(manyN(parser, { min: min - 1, max: max - 1 }), otherResults => [result, ...otherResults])(rest)
   }
 
 export const many = manyN
 export const many0 = many
 
-export const many1 = <A>(
-  parser: Parser<A>,
-  { max = Infinity }: ManyNLimitsType = {}
-): Parser<A[]> => manyN(parser, { min: 1, max })
+export const many1 = <A>(parser: Parser<A>, { max = Infinity }: ManyNLimitsType = {}): Parser<A[]> =>
+  manyN(parser, { min: 1, max })
 
-export const many2 = <A>(
-  parser: Parser<A>,
-  { max = Infinity }: ManyNLimitsType = {}
-): Parser<A[]> => manyN(parser, { min: 2, max })
+export const many2 = <A>(parser: Parser<A>, { max = Infinity }: ManyNLimitsType = {}): Parser<A[]> =>
+  manyN(parser, { min: 2, max })
 
 export const empty: Parser<EmptyString> = input => [EMPTY_STRING, input]
 
@@ -281,19 +223,11 @@ export const delimitedBy = <A>(
 ): Parser<A> => precededBy(parserBefore, succeededBy(parser, parserAfter))
 // map(and3(parserBefore, parser, parserAfter), ([_, result, __]) => result)
 
-export const surroundedBy = <A>(
-  parserBeforeAndAfter: Parser<unknown>,
-  parser: Parser<A>
-): Parser<A> => delimitedBy(parserBeforeAndAfter, parser, parserBeforeAndAfter)
+export const surroundedBy = <A>(parserBeforeAndAfter: Parser<unknown>, parser: Parser<A>): Parser<A> =>
+  delimitedBy(parserBeforeAndAfter, parser, parserBeforeAndAfter)
 
-export const joinedBy = <A>(
-  parser: Parser<A>,
-  parserInTheMiddle: Parser<unknown>
-): Parser<[A, A]> =>
-  map(and(succeededBy(parser, parserInTheMiddle), parser), ([result1, result2]) => [
-    result1,
-    result2,
-  ])
+export const joinedBy = <A>(parser: Parser<A>, parserInTheMiddle: Parser<unknown>): Parser<[A, A]> =>
+  map(and(succeededBy(parser, parserInTheMiddle), parser), ([result1, result2]) => [result1, result2])
 
 export const char = (singleChar: SingleChar): Parser<SingleChar> => satisfy(c => c === singleChar)
 export const anyChar = (): Parser<SingleChar> => satisfy(_ => true)
@@ -321,8 +255,7 @@ export const digit = map(
 )
 export const digits = many1(digit)
 
-export const charRange = (from: SingleChar, to: SingleChar) =>
-  satisfy(char => char >= from && char <= to)
+export const charRange = (from: SingleChar, to: SingleChar) => satisfy(char => char >= from && char <= to)
 
 export const allButCharRange = (from: SingleChar, to: SingleChar) => not1(charRange(from, to))
 
@@ -443,8 +376,7 @@ export const naturalGreaterThanZero = numberRange({ from: 1 })
 
 export const float = map(
   and(integer, precededBy(period, natural)),
-  ([int, nat]) =>
-    int + (nat === 0 ? 0 : (Math.sign(int) * nat) / BASE_10 ** Math.trunc(Math.log10(nat) + 1))
+  ([int, nat]) => int + (nat === 0 ? 0 : (Math.sign(int) * nat) / BASE_10 ** Math.trunc(Math.log10(nat) + 1))
 )
 
 export const numeric = or(float, integer)

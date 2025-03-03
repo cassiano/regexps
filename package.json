@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@cdandrea/memoize-ts": "^1.0.59"
+  }
+}
